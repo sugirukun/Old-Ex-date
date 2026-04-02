@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>賞味期限管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:15px;}
+input,select,button,textarea{font-family:inherit;}
+
+/* ===== LOGIN ===== */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-card{background:#fff;border-radius:16px;padding:32px 24px;width:100%;max-width:320px;box-shadow:0 2px 12px rgba(0,0,0,0.08);}
+.login-card h1{font-size:18px;font-weight:600;margin-bottom:8px;text-align:center;}
+.login-card p{font-size:13px;color:#888;text-align:center;margin-bottom:24px;}
+.login-card input{width:100%;font-size:16px;padding:12px 14px;border:1px solid #ddd;border-radius:10px;margin-bottom:12px;outline:none;}
+.login-card input:focus{border-color:#185FA5;}
+.login-card button{width:100%;font-size:16px;padding:13px;border:none;border-radius:10px;background:#185FA5;color:#fff;cursor:pointer;font-weight:500;}
+
+/* ===== MAIN ===== */
+#main-screen{display:none;min-height:100vh;}
+.topbar{background:#fff;padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;}
+.topbar h1{font-size:15px;font-weight:600;flex:1;}
+.staff-badge{font-size:12px;padding:4px 10px;border-radius:99px;background:#f0f0f0;color:#555;}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #eee;position:sticky;top:53px;z-index:99;}
+.tab{flex:1;padding:12px;font-size:14px;text-align:center;cursor:pointer;color:#888;border-bottom:2px solid transparent;}
+.tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:500;}
+
+/* ===== REGISTER ===== */
+#panel-register{padding:16px;display:none;}
+#panel-register.active{display:block;}
+.section{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;}
+.section h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:13px;color:#555;margin-bottom:6px;font-weight:500;}
+.field input,.field select,.field textarea{width:100%;font-size:16px;padding:11px 13px;border:1px solid #ddd;border-radius:10px;outline:none;background:#fff;color:#1a1a1a;-webkit-appearance:none;}
+.field input:focus,.field select:focus{border-color:#185FA5;}
+.field input[readonly]{background:#f8f8f8;color:#888;}
+.field textarea{resize:none;height:70px;}
+.field .hint{font-size:12px;color:#aaa;margin-top:4px;}
+
+/* カメラ */
+.jan-row{display:flex;gap:8px;}
+.jan-row input{flex:1;}
+.jan-row button{padding:11px 14px;border:1px solid #ddd;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;white-space:nowrap;color:#185FA5;font-weight:500;}
+#camera-wrap{margin-top:10px;display:none;}
+#camera-wrap video{width:100%;border-radius:10px;background:#000;}
+#camera-wrap .cam-hint{font-size:12px;color:#888;text-align:center;margin-top:6px;}
+#stop-camera{width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#e53;font-size:14px;cursor:pointer;}
+
+/* マスター情報 */
+#master-result{display:none;}
+.master-card{background:#f0f6ff;border:1px solid #c5d8f5;border-radius:10px;padding:12px 14px;margin-bottom:14px;}
+.master-card .m-name{font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px;}
+.master-card .m-row{display:flex;gap:8px;font-size:13px;color:#555;}
+.master-card .m-row span{background:#fff;border-radius:6px;padding:2px 8px;border:1px solid #ddd;}
+
+/* 登録ボタン */
+.reg-actions{display:flex;gap:10px;margin-top:4px;}
+.reg-actions button{flex:1;padding:14px;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;border:none;}
+.btn-clear{background:#f0f0f0;color:#555;}
+.btn-register{background:#185FA5;color:#fff;}
+
+/* ===== LIST ===== */
+#panel-list{display:none;}
+#panel-list.active{display:block;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px;background:#f5f5f5;}
+.stat{background:#fff;border-radius:10px;padding:10px 10px 8px;}
+.stat-label{font-size:10px;color:#888;margin-bottom:3px;}
+.stat-value{font-size:20px;font-weight:600;color:#1a1a1a;}
+.stat-value.red{color:#c0392b;}.stat-value.amber{color:#b7600a;}.stat-value.green{color:#1e8449;}
+.progress-bar{height:3px;background:#eee;border-radius:2px;margin-top:4px;}
+.progress-fill{height:100%;border-radius:2px;background:#1e8449;transition:width .3s;}
+.filter-bar{padding:10px 14px;background:#fff;border-bottom:1px solid #eee;display:flex;gap:8px;overflow-x:auto;align-items:center;-webkit-overflow-scrolling:touch;}
+.filter-bar label{font-size:12px;color:#888;white-space:nowrap;}
+.filter-bar select,.filter-bar input[type=number]{font-size:13px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;-webkit-appearance:none;white-space:nowrap;}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;}
+thead th{padding:8px 9px;text-align:left;font-weight:600;font-size:11px;color:#888;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;white-space:normal;line-height:1.4;min-width:55px;cursor:pointer;user-select:none;}
+thead th:hover{color:#185FA5;}
+tbody tr{border-bottom:1px solid #f0f0f0;}
+tbody tr:active{background:#f8f8f8;}
+tbody tr.checked-row{opacity:.35;}
+td{padding:8px 9px;vertical-align:middle;white-space:nowrap;}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;}
+.badge-red{background:#fde8e8;color:#c0392b;}
+.badge-amber{background:#fef3e2;color:#b7600a;}
+.badge-green{background:#e8f8ee;color:#1e8449;}
+.badge-gray{background:#f0f0f0;color:#666;}
+.badge-purple{background:#f0eeff;color:#5b4bc4;}
+input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;}
+.muted{color:#bbb;font-size:12px;}
+.barcode-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.barcode-num{font-size:9px;color:#888;letter-spacing:.5px;font-family:monospace;}
+.own-label{font-size:10px;color:#aaa;display:block;}
+.own-code{font-size:11px;color:#666;font-family:monospace;}
+.empty-row{padding:40px;text-align:center;color:#aaa;font-size:14px;}
+
+/* ===== TOAST ===== */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:999;}
+#toast.show{opacity:1;}
+
+/* ===== LOADING ===== */
+#loading{position:fixed;inset:0;background:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center;z-index:999;display:none;}
+.spinner{width:32px;height:32px;border:3px solid #eee;border-top-color:#185FA5;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading"><div class="spinner"></div></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>賞味期限管理</h1>
+    <p>担当者名を入力してください</p>
+    <input type="text" id="login-name" placeholder="例：田中" />
+    <button onclick="doLogin()">ログイン</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main-screen">
+  <div class="topbar">
+    <h1>賞味期限管理</h1>
+    <span class="staff-badge" id="staff-disp"></span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-reg" onclick="switchTab('register')">商品登録</div>
+    <div class="tab" id="tab-list" onclick="switchTab('list')">一覧・確認</div>
+  </div>
+
+  <!-- REGISTER -->
+  <div id="panel-register" class="active">
+    <div class="section">
+      <h3>JANコードを読み込む</h3>
+      <div class="jan-row">
+        <input type="text" id="jan-input" placeholder="スキャン or 入力" inputmode="numeric" />
+        <button onclick="toggleCamera()">📷 カメラ</button>
+        <button onclick="lookupJAN()">検索</button>
+      </div>
+      <div id="camera-wrap">
+        <video id="camera-video" autoplay playsinline muted></video>
+        <p class="cam-hint">バーコードをカメラに向けてください</p>
+        <button id="stop-camera" onclick="stopCamera()">カメラを停止</button>
+      </div>
+    </div>
+
+    <div id="master-result">
+      <div class="section">
+        <h3>商品情報（マスターより自動呼び出し）</h3>
+        <div class="master-card">
+          <div class="m-name" id="m-name">—</div>
+          <div class="m-row">
+            <span id="m-cat">—</span>
+            <span id="m-own">—</span>
+            <span id="m-jan" style="font-family:monospace;font-size:11px">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>入力項目</h3>
+        <div class="field">
+          <label>通路番号</label>
+          <select id="reg-aisle"><option value="">選択してください</option></select>
+        </div>
+        <div class="field">
+          <label>最古賞味期限</label>
+          <input type="text" id="reg-expiry" placeholder="yyyymmdd" inputmode="numeric" maxlength="8" />
+          <div class="hint">8桁の数字で入力（例：20260410）</div>
+        </div>
+        <div class="field">
+          <label>残日数（自動計算）</label>
+          <input type="text" id="reg-days" readonly placeholder="賞味期限を入力すると自動計算" />
+        </div>
+        <div class="field">
+          <label>期限切れ個数</label>
+          <input type="number" id="reg-expiredQty" placeholder="0" inputmode="numeric" min="0" value="0" />
+        </div>
+        <div class="field">
+          <label>値下げ処理商品の場所</label>
+          <textarea id="reg-discount" placeholder="例：A-1通路端 値下棚"></textarea>
+        </div>
+        <div class="field">
+          <label>担当者</label>
+          <input type="text" id="reg-staff" readonly />
+        </div>
+        <div class="field">
+          <label>登録日</label>
+          <input type="text" id="reg-date" readonly />
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="reg-actions">
+          <button class="btn-clear" onclick="clearForm()">クリア</button>
+          <button class="btn-register" onclick="registerItem()">登録する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIST -->
+  <div id="panel-list">
+    <div class="stats">
+      <div class="stat"><div class="stat-label">総商品数</div><div class="stat-value" id="s-total">0</div></div>
+      <div class="stat"><div class="stat-label">期限切れ</div><div class="stat-value red" id="s-expired">0</div></div>
+      <div class="stat"><div class="stat-label">警告圏内</div><div class="stat-value amber" id="s-warn">0</div></div>
+      <div class="stat"><div class="stat-label">確認済み</div><div class="stat-value green" id="s-done">0</div>
+        <div class="progress-bar"><div class="progress-fill" id="s-prog" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <label>絞込：</label>
+      <select id="filter-status" onchange="renderList()">
+        <option value="all">すべて</option>
+        <option value="expired">期限切れ</option>
+        <option value="warn" selected>警告圏内</option>
+        <option value="ok">余裕あり</option>
+      </select>
+      <label>通路：</label>
+      <select id="filter-aisle" onchange="renderList()"><option value="all">すべて</option></select>
+      <label>カテゴリ：</label>
+      <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
+      <label>アラート：</label>
+      <input type="number" id="alert-days" value="7" min="1" max="60" style="width:48px" onchange="renderList()">
+      <label>日以内</label>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px">済</th>
+            <th onclick="sortBy('aisle')">通路 ↕</th>
+            <th>JANコード</th>
+            <th>自社<br>コード</th>
+            <th onclick="sortBy('name')">商品名 ↕</th>
+            <th>カテゴリ</th>
+            <th onclick="sortBy('expiry')">最古<br>賞味期限 ↕</th>
+            <th onclick="sortBy('expired_qty')">期限切れ<br>個数 ↕</th>
+            <th onclick="sortBy('sell_by')">販売期限<br>切れ日 ↕</th>
+            <th onclick="sortBy('days')">残日数 ↕</th>
+            <th onclick="sortBy('discount_location')">値下処理<br>商品の場所 ↕</th>
+            <th onclick="sortBy('staff')">担当者 ↕</th>
+            <th onclick="sortBy('registered_at')">登録日 ↕</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ★ここを自分のSupabase情報に書き換えてください★
+const SUPABASE_URL = 'https://hloolqqmdvqfuaoydkmq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
+// ============================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const today = new Date(); today.setHours(0,0,0,0);
+function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
+function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
+function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
+function todayStr(){return fmt(today);}
+
+const AISLES=[];
+for(let i=1;i<=16;i++)['A','B','C','D'].forEach(l=>AISLES.push(`${i}${l}`));
+
+let currentStaff='';
+let listData=[];
+let sortKey='expiry',sortDir=1;
+let currentMaster=null;
+let codeReader=null;
+let cameraActive=false;
+
+// ===== LOADING =====
+function showLoading(v){document.getElementById('loading').style.display=v?'flex':'none';}
+
+// ===== TOAST =====
+function toast(msg,duration=2500){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),duration);
+}
+
+// ===== LOGIN =====
+function doLogin(){
+  const n=document.getElementById('login-name').value.trim();
+  if(!n){toast('担当者名を入力してください');return;}
+  currentStaff=n;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-screen').style.display='block';
+  document.getElementById('staff-disp').textContent='担当：'+n;
+  document.getElementById('reg-staff').value=n;
+  document.getElementById('reg-date').value=todayStr();
+  buildAisleSelect();
+  loadList();
+}
+
+// ===== AISLE =====
+function buildAisleSelect(){
+  const sel=document.getElementById('reg-aisle');
+  sel.innerHTML='<option value="">選択してください</option>';
+  AISLES.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
+}
+
+// ===== TABS =====
+function switchTab(t){
+  document.getElementById('panel-register').classList.toggle('active',t==='register');
+  document.getElementById('panel-list').style.display=t==='list'?'block':'none';
+  document.getElementById('tab-reg').classList.toggle('active',t==='register');
+  document.getElementById('tab-list').classList.toggle('active',t==='list');
+  if(t==='list')loadList();
+  if(t==='register'&&cameraActive)stopCamera();
+}
+
+// ===== CAMERA =====
+async function toggleCamera(){
+  if(cameraActive){stopCamera();return;}
+  const wrap=document.getElementById('camera-wrap');
+  wrap.style.display='block';
+  try{
+    codeReader=new ZXing.BrowserMultiFormatReader();
+    const devices=await ZXing.BrowserCodeReader.listVideoInputDevices();
+    const backCam=devices.find(d=>d.label.toLowerCase().includes('back')||d.label.toLowerCase().includes('rear'))||devices[devices.length-1];
+    const deviceId=backCam?backCam.deviceId:undefined;
+    await codeReader.decodeFromVideoDevice(deviceId,'camera-video',(result,err)=>{
+      if(result){
+        document.getElementById('jan-input').value=result.getText();
+        stopCamera();
+        lookupJAN();
+      }
+    });
+    cameraActive=true;
+  }catch(e){
+    toast('カメラにアクセスできませんでした');
+    wrap.style.display='none';
+  }
+}
+
+function stopCamera(){
+  if(codeReader)codeReader.reset();
+  cameraActive=false;
+  document.getElementById('camera-wrap').style.display='none';
+}
+
+// ===== JAN LOOKUP =====
+async function lookupJAN(){
+  const jan=document.getElementById('jan-input').value.trim();
+  if(!jan){toast('JANコードを入力してください');return;}
+  showLoading(true);
+  const {data,error}=await sb.from('products').select('*').eq('jan',jan).single();
+  showLoading(false);
+  if(error||!data){toast('商品マスターに存在しません');return;}
+  currentMaster=data;
+  document.getElementById('m-name').textContent=data.name;
+  document.getElementById('m-cat').textContent=data.category;
+  document.getElementById('m-own').textContent=data.own_code;
+  document.getElementById('m-jan').textContent=data.jan;
+  document.getElementById('master-result').style.display='block';
+
+  // 既存登録があれば通路・賞味期限を引き継ぐ
+  const aisle=document.getElementById('reg-aisle').value;
+  if(aisle){
+    const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',jan).eq('aisle',aisle).single();
+    if(rec){
+      const exStr=rec.expiry.replace(/-/g,'');
+      document.getElementById('reg-expiry').value=exStr;
+      document.getElementById('reg-expiredQty').value=rec.expired_qty||0;
+      document.getElementById('reg-discount').value=rec.discount_location||'';
+      updateDays(exStr);
+    }
+  }
+  toast('商品情報を読み込みました');
+}
+
+// 賞味期限→残日数
+function updateDays(v){
+  const val=(v||document.getElementById('reg-expiry').value).replace(/\D/g,'');
+  if(val.length===8){
+    const dt=new Date(`${val.slice(0,4)}-${val.slice(4,6)}-${val.slice(6,8)}`);
+    dt.setHours(0,0,0,0);
+    const diff=Math.round((dt-today)/86400000);
+    document.getElementById('reg-days').value=isNaN(diff)?'':diff+'日';
+  }else{
+    document.getElementById('reg-days').value='';
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const ei=document.getElementById('reg-expiry');
+  if(ei)ei.addEventListener('input',()=>updateDays());
+});
+
+// ===== REGISTER =====
+async function registerItem(){
+  if(!currentMaster){toast('JANコードを読み込んでください');return;}
+  const aisle=document.getElementById('reg-aisle').value;
+  const expiryRaw=document.getElementById('reg-expiry').value.replace(/\D/g,'');
+  const qty=parseInt(document.getElementById('reg-expiredQty').value)||0;
+  const discount=document.getElementById('reg-discount').value.trim();
+  if(!aisle){toast('通路番号を選択してください');return;}
+  if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
+  const expiryFmt=`${expiryRaw.slice(0,4)}-${expiryRaw.slice(4,6)}-${expiryRaw.slice(6,8)}`;
+  const sellByDt=new Date(expiryFmt);
+  sellByDt.setDate(sellByDt.getDate()+(currentMaster.sell_by_offset||0));
+  const sellByFmt=fmt(sellByDt);
+
+  showLoading(true);
+  const {error}=await sb.from('expiry_records').upsert({
+    jan:currentMaster.jan,
+    aisle,
+    expiry:expiryFmt,
+    expired_qty:qty,
+    sell_by:sellByFmt,
+    discount_location:discount,
+    staff:currentStaff,
+    registered_at:todayStr(),
+    checked:false
+  },{onConflict:'jan,aisle'});
+  showLoading(false);
+  if(error){toast('登録に失敗しました：'+error.message);return;}
+  toast('登録しました：'+currentMaster.name+' / '+aisle);
+  clearForm();
+}
+
+function clearForm(){
+  currentMaster=null;
+  document.getElementById('jan-input').value='';
+  document.getElementById('master-result').style.display='none';
+  document.getElementById('reg-aisle').value='';
+  document.getElementById('reg-expiry').value='';
+  document.getElementById('reg-expiredQty').value='0';
+  document.getElementById('reg-days').value='';
+  document.getElementById('reg-discount').value='';
+}
+
+// ===== LIST =====
+function encodeEAN13(code){
+  const c=code.replace(/\D/g,'');if(c.length!==13)return null;
+  const L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+  const G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+  const R=['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+  const parity=['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+  const p=parity[parseInt(c[0])];let bits='101';
+  for(let i=1;i<=6;i++){const d=parseInt(c[i]);bits+=p[i-1]==='L'?L[d]:G[d];}
+  bits+='01010';
+  for(let i=7;i<=12;i++)bits+=R[parseInt(c[i])];
+  bits+='101';return bits;
+}
+function drawBarcode(canvas,code){
+  const enc=encodeEAN13(code);if(!enc)return;
+  const barW=1.3,h=28,qz=4;
+  canvas.width=Math.ceil(enc.length*barW+qz*2);canvas.height=h;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  enc.forEach((bit,i)=>{
+    ctx.fillStyle=bit==='1'?'#111':'#fff';
+    ctx.fillRect(qz+i*barW,0,barW,h);
+  });
+}
+
+async function loadList(){
+  showLoading(true);
+  const {data,error}=await sb
+    .from('expiry_records')
+    .select(`*, products(name, own_code, category)`)
+    .order('expiry',{ascending:true});
+  showLoading(false);
+  if(error){toast('データ取得に失敗しました');return;}
+  listData=data.map(r=>({
+    ...r,
+    name:r.products?.name||'—',
+    own_code:r.products?.own_code||'—',
+    category:r.products?.category||'—',
+    days:daysLeft(r.expiry)
+  }));
+  populateFilterSelects();
+  renderList();
+}
+
+function populateFilterSelects(){
+  const aisles=[...new Set(listData.map(d=>d.aisle))].sort((a,b)=>{
+    const n1=parseInt(a),n2=parseInt(b);
+    if(n1!==n2)return n1-n2;
+    return a.slice(-1).localeCompare(b.slice(-1));
+  });
+  const cats=[...new Set(listData.map(d=>d.category))].sort();
+  const as=document.getElementById('filter-aisle');
+  const cs=document.getElementById('filter-cat');
+  const ca=as.value,cc=cs.value;
+  as.innerHTML='<option value="all">すべて</option>';
+  cs.innerHTML='<option value="all">すべて</option>';
+  aisles.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;as.appendChild(o);});
+  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);});
+  if(ca)as.value=ca;if(cc)cs.value=cc;
+}
+
+function badgeFor(days,ad){
+  const s=statusOf(days,ad);
+  if(s==='expired')return`<span class="badge badge-red">期限切れ</span>`;
+  if(s==='warn')return`<span class="badge badge-amber">${days}日</span>`;
+  return`<span class="badge badge-green">${days}日</span>`;
+}
+
+function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderList();}
+
+function renderList(){
+  const ad=parseInt(document.getElementById('alert-days').value)||7;
+  const fs=document.getElementById('filter-status').value;
+  const fa=document.getElementById('filter-aisle').value;
+  const fc=document.getElementById('filter-cat').value;
+  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
+  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+  if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
+  rows.sort((a,b)=>{
+    let av=a[sortKey],bv=b[sortKey];
+    if(['expiry','sell_by','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
+    if(sortKey==='aisle'){const n1=parseInt(av),n2=parseInt(bv);if(n1!==n2)return(n1-n2)*sortDir;av=String(av).slice(-1);bv=String(bv).slice(-1);}
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  const exp=listData.filter(r=>daysLeft(r.expiry)<0).length;
+  const warn=listData.filter(r=>{const d=daysLeft(r.expiry);return d>=0&&d<=ad;}).length;
+  const done=listData.filter(r=>r.checked).length;
+  document.getElementById('s-total').textContent=listData.length;
+  document.getElementById('s-expired').textContent=exp;
+  document.getElementById('s-warn').textContent=warn;
+  document.getElementById('s-done').textContent=done;
+  document.getElementById('s-prog').style.width=listData.length?Math.round(done/listData.length*100)+'%':'0%';
+  const tbody=document.getElementById('tbody');
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13" class="empty-row">該当する商品はありません</td></tr>`;return;}
+  tbody.innerHTML=rows.map(r=>{
+    const cid=`bc_${r.jan}_${r.aisle.replace(/\W/g,'')}`;
+    const qtyCell=r.expired_qty>0?`<span class="badge badge-red">${r.expired_qty}個</span>`:`<span class="muted">—</span>`;
+    const locCell=r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`;
+    return`<tr class="${r.checked?'checked-row':''}">
+      <td style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
+      <td><span class="badge badge-gray">${r.aisle}</span></td>
+      <td><div class="barcode-wrap"><canvas id="${cid}"></canvas><span class="barcode-num">${r.jan}</span></div></td>
+      <td><span class="own-label">自社</span><span class="own-code">${r.own_code}</span></td>
+      <td style="font-weight:600">${r.name}</td>
+      <td><span class="badge badge-gray">${r.category}</span></td>
+      <td>${r.expiry}</td>
+      <td style="text-align:center">${qtyCell}</td>
+      <td>${r.sell_by||'—'}</td>
+      <td>${badgeFor(r.days,ad)}</td>
+      <td>${locCell}</td>
+      <td style="color:#888">${r.staff}</td>
+      <td style="color:#888;font-size:11px">${r.registered_at}</td>
+    </tr>`;
+  }).join('');
+  rows.forEach(r=>{
+    const cid=`bc_${r.jan}_${r.aisle.replace(/\W/g,'')}`;
+    const canvas=document.getElementById(cid);
+    if(canvas)drawBarcode(canvas,r.jan);
+  });
+}
+
+async function toggleCheck(id,current){
+  const{error}=await sb.from('expiry_records').update({checked:!current}).eq('id',id);
+  if(error){toast('更新に失敗しました');return;}
+  const item=listData.find(r=>r.id===id);
+  if(item)item.checked=!current;
+  renderList();
+}
+</script>
+</body>
+</html>
