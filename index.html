@@ -499,7 +499,7 @@ async function loadList(){
     .select(`*, products(name, own_code, category, department)`)
     .order('expiry',{ascending:true});
   showLoading(false);
-  if(error){toast('データ取得に失敗しました');return;}
+  if(error){toast('エラー：'+error.message+' / '+error.code);return;}
   listData=data.map(r=>({
     ...r,
     name:r.products?.name||'—',
