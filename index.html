@@ -290,7 +290,7 @@ const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const today = new Date(); today.setHours(0,0,0,0);
+const todayJST = new Date(new Date().toLocaleString('ja-JP', {timeZone:'Asia/Tokyo'})); todayJST.setHours(0,0,0,0); const today = todayJST;
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
 function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
 function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
