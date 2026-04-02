@@ -98,6 +98,8 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 .jan-code{font-family:monospace;font-size:11px;color:#555;letter-spacing:0.5px;width:110px;display:inline-block;}
 .empty-row{padding:40px;text-align:center;color:#aaa;font-size:14px;}
 
+.col-btn{font-size:11px;padding:4px 10px;border:1px solid #ddd;border-radius:99px;background:#fff;color:#555;cursor:pointer;white-space:nowrap;}
+.col-btn.hidden{background:#f0f0f0;color:#bbb;text-decoration:line-through;}
 /* ===== TOAST ===== */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:999;}
 #toast.show{opacity:1;}
@@ -252,27 +254,30 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
       <label>アラート：</label>
-      <input type="number" id="alert-days" value="7" min="1" max="60" style="width:48px" oninput="renderList()">
+      <input type="number" id="alert-days" value="7" min="1" max="60" style="width:48px" onchange="renderList()">
       <label>日以内</label>
+    </div>
+    <div class="col-toggle-bar" id="col-toggle-bar" style="padding:8px 14px;background:#fff;border-bottom:1px solid #eee;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:12px;color:#888;white-space:nowrap">列の表示：</span>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th style="width:30px">済</th>
-            <th onclick="sortBy('department')">部門 ↕</th>
-            <th onclick="sortBy('aisle')">通路 ↕</th>
-            <th>JANコード</th>
-            <th>自社<br>コード</th>
-            <th onclick="sortBy('name')">商品名 ↕</th>
-            <th>カテゴリ</th>
-            <th onclick="sortBy('expiry')">最古<br>賞味期限 ↕</th>
-            <th onclick="sortBy('expired_qty')">期限切れ<br>個数 ↕</th>
-            <th onclick="sortBy('sell_by')">販売期限<br>切れ日 ↕</th>
-            <th onclick="sortBy('days')">残日数 ↕</th>
-            <th onclick="sortBy('discount_location')">値下処理<br>商品の場所 ↕</th>
-            <th onclick="sortBy('staff')">担当者 ↕</th>
-            <th onclick="sortBy('registered_at')">登録日 ↕</th>
+            <th data-col="0" style="width:30px">済</th>
+            <th data-col="1" onclick="sortBy('department')">部門 ↕</th>
+            <th data-col="2" onclick="sortBy('aisle')">通路 ↕</th>
+            <th data-col="3">JANコード</th>
+            <th data-col="4">自社<br>コード</th>
+            <th data-col="5" onclick="sortBy('name')">商品名 ↕</th>
+            <th data-col="6">カテゴリ</th>
+            <th data-col="7" onclick="sortBy('expiry')">最古<br>賞味期限 ↕</th>
+            <th data-col="8" onclick="sortBy('expired_qty')">期限切れ<br>個数 ↕</th>
+            <th data-col="9" onclick="sortBy('sell_by')">販売期限<br>切れ日 ↕</th>
+            <th data-col="10" onclick="sortBy('days')">残日数 ↕</th>
+            <th data-col="11" onclick="sortBy('discount_location')">値下処理<br>商品の場所 ↕</th>
+            <th data-col="12" onclick="sortBy('staff')">担当者 ↕</th>
+            <th data-col="13" onclick="sortBy('registered_at')">登録日 ↕</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -290,9 +295,9 @@ const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const todayJST = new Date(new Date().toLocaleString('ja-JP', {timeZone:'Asia/Tokyo'})); todayJST.setHours(0,0,0,0); const today = todayJST;
+const today = new Date(); today.setHours(0,0,0,0);
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
-function daysLeft(e){   const parts=e.split('-');   const d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));   return Math.round((d-today)/86400000); }
+function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
 function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
 function todayStr(){
   const jst=new Date(today.getTime()+9*60*60*1000);
@@ -458,8 +463,7 @@ async function registerItem(){
   if(!aisle){toast('通路番号を選択してください');return;}
   if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
   const expiryFmt=`${expiryRaw.slice(0,4)}-${expiryRaw.slice(4,6)}-${expiryRaw.slice(6,8)}`;
-  const ep=expiryRaw;
-  const sellByDt=new Date(parseInt(ep.slice(0,4)),parseInt(ep.slice(4,6))-1,parseInt(ep.slice(6,8)));
+  const sellByDt=new Date(expiryFmt);
   sellByDt.setDate(sellByDt.getDate()+(currentMaster.sell_by_offset||0));
   const sellByFmt=fmt(sellByDt);
 
@@ -500,7 +504,7 @@ async function loadList(){
     .select(`*, products(name, own_code, category, department)`)
     .order('expiry',{ascending:true});
   showLoading(false);
-  if(error){toast('エラー：'+error.message+' / '+error.code);return;}
+  if(error){toast('データ取得に失敗しました');return;}
   listData=data.map(r=>({
     ...r,
     name:r.products?.name||'—',
@@ -511,6 +515,7 @@ async function loadList(){
   }));
   populateFilterSelects();
   renderList();
+  buildColToggle();
 }
 
 function populateFilterSelects(){
@@ -541,6 +546,46 @@ function badgeFor(days,ad){
   if(s==='expired')return`<span class="badge badge-red">期限切れ</span>`;
   if(s==='warn')return`<span class="badge badge-amber">${days}日</span>`;
   return`<span class="badge badge-green">${days}日</span>`;
+}
+
+// ===== COLUMN TOGGLE =====
+const COL_NAMES = ['済','部門','通路','JANコード','自社コード','商品名','カテゴリ','最古賞味期限','期限切れ個数','販売期限切れ日','残日数','値下処理商品の場所','担当者','登録日'];
+// 非表示にする列のインデックス（初期値：カテゴリ=6、JANコード=3、自社コード=4を非表示）
+let hiddenCols = new Set([3,4,6]);
+
+function buildColToggle(){
+  const bar = document.getElementById('col-toggle-bar');
+  // ラベルの後のボタンだけ削除して再構築
+  const btns = bar.querySelectorAll('.col-btn');
+  btns.forEach(b=>b.remove());
+  COL_NAMES.forEach((name,i)=>{
+    if(i===0) return; // 「済」は常に表示
+    const btn = document.createElement('button');
+    btn.className = 'col-btn' + (hiddenCols.has(i) ? ' hidden' : '');
+    btn.textContent = name;
+    btn.onclick = () => {
+      if(hiddenCols.has(i)) hiddenCols.delete(i);
+      else hiddenCols.add(i);
+      applyColVisibility();
+      buildColToggle();
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function applyColVisibility(){
+  const table = document.querySelector('#panel-list table');
+  if(!table) return;
+  const rows = table.querySelectorAll('tr');
+  rows.forEach(row=>{
+    const cells = row.children;
+    for(let i=0;i<cells.length;i++){
+      const col = cells[i].getAttribute('data-col') !== null
+        ? parseInt(cells[i].getAttribute('data-col'))
+        : i;
+      cells[i].style.display = hiddenCols.has(col) ? 'none' : '';
+    }
+  });
 }
 
 function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderList();}
@@ -593,6 +638,7 @@ function renderList(){
     </tr>`;
   }).join('');
 
+  applyColVisibility();
 }
 
 async function toggleCheck(id,current){
