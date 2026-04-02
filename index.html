@@ -292,7 +292,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const todayJST = new Date(new Date().toLocaleString('ja-JP', {timeZone:'Asia/Tokyo'})); todayJST.setHours(0,0,0,0); const today = todayJST;
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
-function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
+function daysLeft(e){   const parts=e.split('-');   const d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));   return Math.round((d-today)/86400000); }
 function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
 function todayStr(){
   const jst=new Date(today.getTime()+9*60*60*1000);
