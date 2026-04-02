@@ -93,10 +93,9 @@ td{padding:8px 9px;vertical-align:middle;white-space:nowrap;}
 .badge-purple{background:#f0eeff;color:#5b4bc4;}
 input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;}
 .muted{color:#bbb;font-size:12px;}
-.barcode-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;}
-.barcode-num{font-size:9px;color:#888;letter-spacing:.5px;font-family:monospace;}
 .own-label{font-size:10px;color:#aaa;display:block;}
 .own-code{font-size:11px;color:#666;font-family:monospace;}
+.jan-code{font-family:monospace;font-size:11px;color:#555;letter-spacing:0.5px;width:110px;display:inline-block;}
 .empty-row{padding:40px;text-align:center;color:#aaa;font-size:14px;}
 
 /* ===== TOAST ===== */
@@ -286,7 +285,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 // ============================================================
 // ★ここを自分のSupabase情報に書き換えてください★
 const SUPABASE_URL = 'https://hloolqqmdvqfuaoydkmq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
+const SUPABASE_KEY = 'YOUR_PUBLISHABLE_KEY_HERE';
 // ============================================================
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -295,7 +294,10 @@ const today = new Date(); today.setHours(0,0,0,0);
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
 function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
 function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
-function todayStr(){   const jst = new Date(today.getTime() + 9*60*60*1000);   return jst.toISOString().slice(0,10); }
+function todayStr(){
+  const jst=new Date(today.getTime()+9*60*60*1000);
+  return jst.toISOString().slice(0,10);
+}
 
 const AISLES=[];
 for(let i=1;i<=16;i++)['A','B','C','D'].forEach(l=>AISLES.push(`${i}${l}`));
@@ -490,30 +492,6 @@ function clearForm(){
 }
 
 // ===== LIST =====
-function encodeEAN13(code){
-  const c=code.replace(/\D/g,'');if(c.length!==13)return null;
-  const L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
-  const G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
-  const R=['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
-  const parity=['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
-  const p=parity[parseInt(c[0])];let bits='101';
-  for(let i=1;i<=6;i++){const d=parseInt(c[i]);bits+=p[i-1]==='L'?L[d]:G[d];}
-  bits+='01010';
-  for(let i=7;i<=12;i++)bits+=R[parseInt(c[i])];
-  bits+='101';return bits;
-}
-function drawBarcode(canvas,code){
-  const enc=encodeEAN13(code);if(!enc)return;
-  const barW=1.3,h=28,qz=4;
-  canvas.width=Math.ceil(enc.length*barW+qz*2);canvas.height=h;
-  const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-  enc.forEach((bit,i)=>{
-    ctx.fillStyle=bit==='1'?'#111':'#fff';
-    ctx.fillRect(qz+i*barW,0,barW,h);
-  });
-}
-
 async function loadList(){
   showLoading(true);
   const {data,error}=await sb
@@ -594,14 +572,13 @@ function renderList(){
   const tbody=document.getElementById('tbody');
   if(!rows.length){tbody.innerHTML=`<tr><td colspan="14" class="empty-row">該当する商品はありません</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>{
-    const cid=`bc_${r.jan}_${r.aisle.replace(/\W/g,'')}`;
     const qtyCell=r.expired_qty>0?`<span class="badge badge-red">${r.expired_qty}個</span>`:`<span class="muted">—</span>`;
     const locCell=r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`;
     return`<tr class="${r.checked?'checked-row':''}">
       <td style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
       <td><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
       <td><span class="badge badge-gray">${r.aisle}</span></td>
-      <td><div class="barcode-wrap"><canvas id="${cid}"></canvas><span class="barcode-num">${r.jan}</span></div></td>
+      <td><span class="jan-code">${r.jan}</span></td>
       <td><span class="own-label">自社</span><span class="own-code">${r.own_code}</span></td>
       <td style="font-weight:600">${r.name}</td>
       <td><span class="badge badge-gray">${r.category}</span></td>
@@ -614,11 +591,7 @@ function renderList(){
       <td style="color:#888;font-size:11px">${r.registered_at}</td>
     </tr>`;
   }).join('');
-  rows.forEach(r=>{
-    const cid=`bc_${r.jan}_${r.aisle.replace(/\W/g,'')}`;
-    const canvas=document.getElementById(cid);
-    if(canvas)drawBarcode(canvas,r.jan);
-  });
+
 }
 
 async function toggleCheck(id,current){
