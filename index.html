@@ -265,7 +265,9 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
       <label>アラート：</label>
-      <input type="number" id="alert-days" value="7" min="1" max="60" style="width:48px" onchange="renderList()">
+      <button onclick="changeAlertDays(-1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">－</button>
+      <span id="alert-days-disp" style="font-size:13px;font-weight:500;min-width:24px;text-align:center;display:inline-block;">7</span>
+      <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
       <label>日以内</label>
     </div>
     <div class="col-toggle-bar">
@@ -573,6 +575,8 @@ function badgeFor(days,ad){
 
 // ===== COLUMN TOGGLE =====
 let hiddenCols = new Set([3,4,6]);
+let alertDays=7;
+function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
 
 function toggleCol(col, visible){
   if(visible) hiddenCols.delete(col);
@@ -598,7 +602,7 @@ function applyColVisibility(){
 function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderList();}
 
 function renderList(){
-  const ad=parseInt(document.getElementById('alert-days').value)||7;
+  const ad=alertDays;
   const fs=document.getElementById('filter-status').value;
   const fa=document.getElementById('filter-aisle').value;
   const fc=document.getElementById('filter-cat').value;
