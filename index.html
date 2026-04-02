@@ -458,7 +458,8 @@ async function registerItem(){
   if(!aisle){toast('通路番号を選択してください');return;}
   if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
   const expiryFmt=`${expiryRaw.slice(0,4)}-${expiryRaw.slice(4,6)}-${expiryRaw.slice(6,8)}`;
-  const sellByDt=new Date(expiryFmt);
+  const ep=expiryRaw;
+  const sellByDt=new Date(parseInt(ep.slice(0,4)),parseInt(ep.slice(4,6))-1,parseInt(ep.slice(6,8)));
   sellByDt.setDate(sellByDt.getDate()+(currentMaster.sell_by_offset||0));
   const sellByFmt=fmt(sellByDt);
 
