@@ -252,7 +252,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
       <label>アラート：</label>
-      <input type="number" id="alert-days" value="7" min="1" max="60" style="width:48px" onchange="renderList()">
+      <input type="number" id="alert-days" value="7" min="1" max="60" style="width:48px" oninput="renderList()">
       <label>日以内</label>
     </div>
     <div class="table-wrap">
