@@ -603,9 +603,9 @@ function closeDialog(){
 }
 
 async function dialogAction(btn){
-  closeDialog();
   if(!pendingRegister)return;
   const{jan,aisle,expiryFmt,qty,sellByFmt,discount}=pendingRegister;
+  closeDialog();
   if(btn===1){
     // 同じ通路・同じ期限が済でない場合は新規追加、済の場合は上書き
     const sameAisleRecords=listData.filter(r=>r.jan===jan&&r.aisle===aisle);
