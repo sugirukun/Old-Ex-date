@@ -629,8 +629,18 @@ async function dialogAction(btn){
     clearForm();
     loadList();
   } else if(btn===2){
-    document.getElementById('reg-aisle').value='';
-    toast('通路番号を変更して再度「登録する」を押してください');
+    // 異なる通路でそのまま登録
+    showLoading(true);
+    const{error}=await sb.from('expiry_records').insert({
+      jan,aisle,expiry:expiryFmt,expired_qty:qty,
+      sell_by:sellByFmt,discount_location:discount,
+      staff:currentStaff,registered_at:todayStr(),checked:false
+    });
+    showLoading(false);
+    if(error){toast('登録に失敗しました：'+error.message);return;}
+    toast('登録しました：'+currentMaster.name+' / '+aisle);
+    clearForm();
+    loadList();
   }
 }
 
