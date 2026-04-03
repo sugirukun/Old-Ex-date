@@ -134,6 +134,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <input type="text" id="login-name" placeholder="担当者名（例：田中）" />
     <select id="login-dept" style="width:100%;font-size:16px;padding:12px 14px;border:1px solid #ddd;border-radius:10px;margin-bottom:12px;outline:none;background:#fff;color:#1a1a1a;-webkit-appearance:none;">
       <option value="">部門を選択してください</option>
+      <option value="店長">店長</option>
       <option value="1課（海産）">1課（海産）</option>
       <option value="2課（日配）">2課（日配）</option>
       <option value="3課（食品）">3課（食品）</option>
@@ -254,8 +255,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       </select>
       <label>通路：</label>
       <select id="filter-aisle" onchange="renderList()"><option value="all">すべて</option></select>
-      <label>部門：</label>
-      <select id="filter-dept" onchange="renderList()"><option value="all">すべて</option></select>
+      <span id="dept-filter-wrap" style="display:none;align-items:center;gap:8px;"><label>部門：</label><select id="filter-dept" onchange="renderList()"><option value="all">すべて</option></select></span>
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
       <label>アラート：</label>
@@ -264,21 +264,27 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
       <label>日以内</label>
     </div>
-    <div class="col-toggle-bar">
+    <div style="padding:6px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:12px;color:#888;">列の表示：</span>
+      <button id="mode-default" onclick="setColMode('default')" style="font-size:12px;color:#185FA5;font-weight:700;background:none;border:none;cursor:pointer;padding:2px 0;">デフォルト</button>
+      <button id="mode-custom" onclick="setColMode('custom')" style="font-size:12px;color:#888;font-weight:400;background:none;border:none;cursor:pointer;padding:2px 0;">カスタム</button>
+    </div>
+    <div class="col-toggle-bar" id="col-toggle-bar" style="display:none;">
       <span>列の表示：</span>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(1,this.checked)"><span class="toggle-slider"></span></label><label>部門</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(2,this.checked)"><span class="toggle-slider"></span></label><label>通路</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" onchange="toggleCol(3,this.checked)"><span class="toggle-slider"></span></label><label>JANコード</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" onchange="toggleCol(4,this.checked)"><span class="toggle-slider"></span></label><label>自社コード</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(5,this.checked)"><span class="toggle-slider"></span></label><label>商品名</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" onchange="toggleCol(6,this.checked)"><span class="toggle-slider"></span></label><label>カテゴリ</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(7,this.checked)"><span class="toggle-slider"></span></label><label>最古賞味期限</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(8,this.checked)"><span class="toggle-slider"></span></label><label>期限切れ個数</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(9,this.checked)"><span class="toggle-slider"></span></label><label>販売期限切れ日</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(10,this.checked)"><span class="toggle-slider"></span></label><label>残日数</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(11,this.checked)"><span class="toggle-slider"></span></label><label>値下処理商品の場所</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(12,this.checked)"><span class="toggle-slider"></span></label><label>担当者</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" checked onchange="toggleCol(13,this.checked)"><span class="toggle-slider"></span></label><label>登録日</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="1" checked onchange="toggleCol(1,this.checked)"><span class="toggle-slider"></span></label><label>部門</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="2" checked onchange="toggleCol(2,this.checked)"><span class="toggle-slider"></span></label><label>通路</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="3" onchange="toggleCol(3,this.checked)"><span class="toggle-slider"></span></label><label>JANコード</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="4" onchange="toggleCol(4,this.checked)"><span class="toggle-slider"></span></label><label>自社コード</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="5" checked onchange="toggleCol(5,this.checked)"><span class="toggle-slider"></span></label><label>商品名</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="6" onchange="toggleCol(6,this.checked)"><span class="toggle-slider"></span></label><label>カテゴリ</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="7" checked onchange="toggleCol(7,this.checked)"><span class="toggle-slider"></span></label><label>最古賞味期限</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="8" checked onchange="toggleCol(8,this.checked)"><span class="toggle-slider"></span></label><label>期限切れ個数</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="9" checked onchange="toggleCol(9,this.checked)"><span class="toggle-slider"></span></label><label>販売期限切れ日</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="10" checked onchange="toggleCol(10,this.checked)"><span class="toggle-slider"></span></label><label>残日数</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="11" checked onchange="toggleCol(11,this.checked)"><span class="toggle-slider"></span></label><label>値下処理商品の場所</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="12" checked onchange="toggleCol(12,this.checked)"><span class="toggle-slider"></span></label><label>担当者</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="13" checked onchange="toggleCol(13,this.checked)"><span class="toggle-slider"></span></label><label>登録日</label></div>
+    </div>
     </div>
     <div class="table-wrap">
       <table>
@@ -548,7 +554,14 @@ function populateFilterSelects(){
   depts.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;ds.appendChild(o);});
   if(ca)as.value=ca;if(cc)cs.value=cc;
   // ログイン時の部門を初期選択
-  if(currentDept&&!cd)ds.value=currentDept;else if(cd)ds.value=cd;
+  const deptFilterWrap=document.getElementById('dept-filter-wrap');
+  if(currentDept==='店長'){
+    if(deptFilterWrap)deptFilterWrap.style.display='flex';
+    if(currentDept&&!cd)ds.value='all';else if(cd)ds.value=cd;
+  }else{
+    if(deptFilterWrap)deptFilterWrap.style.display='none';
+    ds.value=currentDept;
+  }
 }
 
 function badgeFor(days,ad){
@@ -559,7 +572,27 @@ function badgeFor(days,ad){
 }
 
 // ===== COLUMN TOGGLE =====
-let hiddenCols = new Set([3,4,6]);
+const DEFAULT_HIDDEN = new Set([1,3,6,9,12,13]);
+let hiddenCols = new Set(DEFAULT_HIDDEN);
+let colMode = 'default';
+
+function setColMode(mode){
+  colMode = mode;
+  if(mode==='default'){
+    hiddenCols = new Set(DEFAULT_HIDDEN);
+    // トグルスイッチをデフォルト状態に同期
+    document.querySelectorAll('.col-toggle-bar input[type=checkbox]').forEach(cb=>{
+      const col=parseInt(cb.getAttribute('data-col'));
+      cb.checked=!DEFAULT_HIDDEN.has(col);
+    });
+  }
+  document.getElementById('mode-default').style.fontWeight=mode==='default'?'700':'400';
+  document.getElementById('mode-custom').style.fontWeight=mode==='custom'?'700':'400';
+  document.getElementById('mode-default').style.color=mode==='default'?'#185FA5':'#888';
+  document.getElementById('mode-custom').style.color=mode==='custom'?'#185FA5':'#888';
+  document.getElementById('col-toggle-bar').style.display=mode==='custom'?'flex':'none';
+  applyColVisibility();
+}
 let alertDays=7;
 function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
 
@@ -595,7 +628,8 @@ function renderList(){
   let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
   if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
   if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-  if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+  if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
   if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
