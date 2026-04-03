@@ -394,7 +394,7 @@ async function toggleCamera(){
       target:document.getElementById('camera-video'),
       constraints:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},
     },
-    decoder:{readers:['ean_reader']},
+    decoder:{readers:['ean_reader','ean_8_reader','code_39_reader','i2of5_reader','code_128_reader','codabar_reader']},
     locate:true,
   },function(err){
     if(err){
