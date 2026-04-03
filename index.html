@@ -423,7 +423,8 @@ async function startBarcodeDetector(){
       try{
         const results=await detector.detect(video);
         if(results.length>0){
-          const code=results[0].rawValue;
+          let code=results[0].rawValue;
+          code=code.replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,'');
           document.getElementById('jan-input').value=code;
           stopCamera();
           lookupJAN();
@@ -465,8 +466,9 @@ async function startQuagga(){
     cameraActive=true;
   });
   Quagga.onDetected(function(result){
-    const code=result.codeResult.code;
+    let code=result.codeResult.code;
     if(code){
+      code=code.replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,'');
       document.getElementById('jan-input').value=code;
       stopCamera();
       lookupJAN();
