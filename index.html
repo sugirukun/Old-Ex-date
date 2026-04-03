@@ -589,7 +589,7 @@ async function registerItem(){
     pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount,sameAisle};
     document.getElementById('dialog-title').textContent='同じ商品がすでに登録済みです';
     document.getElementById('dialog-msg').textContent=`「${currentMaster.name}」はすでに登録されています。どうしますか？`;
-    document.getElementById('dialog-btn1').textContent='同じ通路で別の期限で登録する（上書き）';
+    document.getElementById('dialog-btn1').textContent='同じ通路で別の期限で登録する';
     document.getElementById('dialog-btn2').textContent='異なる通路番号で登録する（複数箇所陳列用）';
     document.getElementById('dialog-overlay').classList.add('show');
     return;
@@ -607,10 +607,28 @@ async function dialogAction(btn){
   if(!pendingRegister)return;
   const{jan,aisle,expiryFmt,qty,sellByFmt,discount}=pendingRegister;
   if(btn===1){
-    // 同じ通路で上書き
-    await doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount);
+    // 同じ通路・同じ期限が済でない場合は新規追加、済の場合は上書き
+    const sameAisleRecords=listData.filter(r=>r.jan===jan&&r.aisle===aisle);
+    const unchecked=sameAisleRecords.filter(r=>!r.checked);
+    if(unchecked.length>0){
+      // 古い未済レコードを済にする
+      for(const rec of unchecked){
+        await sb.from('expiry_records').update({checked:true,expired_qty:0}).eq('id',rec.id);
+      }
+    }
+    // 新規追加（upsertではなくinsert）
+    showLoading(true);
+    const{error}=await sb.from('expiry_records').insert({
+      jan,aisle,expiry:expiryFmt,expired_qty:qty,
+      sell_by:sellByFmt,discount_location:discount,
+      staff:currentStaff,registered_at:todayStr(),checked:false
+    });
+    showLoading(false);
+    if(error){toast('登録に失敗しました：'+error.message);return;}
+    toast('登録しました：'+currentMaster.name+' / '+aisle);
+    clearForm();
+    loadList();
   } else if(btn===2){
-    // 通路番号を変更して登録→通路番号フィールドをクリアして再入力を促す
     document.getElementById('reg-aisle').value='';
     toast('通路番号を変更して再度「登録する」を押してください');
   }
@@ -618,11 +636,11 @@ async function dialogAction(btn){
 
 async function doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount){
   showLoading(true);
-  const{error}=await sb.from('expiry_records').upsert({
+  const{error}=await sb.from('expiry_records').insert({
     jan,aisle,expiry:expiryFmt,expired_qty:qty,
     sell_by:sellByFmt,discount_location:discount,
     staff:currentStaff,registered_at:todayStr(),checked:false
-  },{onConflict:'jan,aisle'});
+  });
   showLoading(false);
   if(error){toast('登録に失敗しました：'+error.message);return;}
   toast('登録しました：'+currentMaster.name+' / '+aisle);
