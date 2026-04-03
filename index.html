@@ -492,10 +492,16 @@ function stopCamera(){
 
 // ===== JAN LOOKUP =====
 async function lookupJAN(){
-  const jan=document.getElementById('jan-input').value.trim();
-  if(!jan){toast('JANコードを入力してください');return;}
+  let code=document.getElementById('jan-input').value.trim();
+  if(!code){toast('JANコードを入力してください');return;}
   showLoading(true);
-  const {data,error}=await sb.from('products').select('*').eq('jan',jan).single();
+  // JANコードで検索
+  let {data,error}=await sb.from('products').select('*').eq('jan',code).single();
+  // 見つからなければ自社コードで検索
+  if(error||!data){
+    const res=await sb.from('products').select('*').eq('own_code',code).single();
+    data=res.data; error=res.error;
+  }
   showLoading(false);
   if(error||!data){toast('商品マスターに存在しません');return;}
   currentMaster=data;
@@ -508,7 +514,7 @@ async function lookupJAN(){
   // 既存登録があれば通路・賞味期限を引き継ぐ
   const aisle=document.getElementById('reg-aisle').value;
   if(aisle){
-    const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',jan).eq('aisle',aisle).single();
+    const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',data.jan).eq('aisle',aisle).single();
     if(rec){
       const exStr=rec.expiry.replace(/-/g,'');
       document.getElementById('reg-expiry').value=exStr;
