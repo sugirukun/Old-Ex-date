@@ -651,20 +651,20 @@ function renderList(){
     const qtyCell=r.expired_qty>0?`<span class="badge badge-red">${r.expired_qty}個</span>`:`<span class="muted">—</span>`;
     const locCell=r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`;
     return`<tr class="${r.checked?'checked-row':''}">
-      <td style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
-      <td><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
-      <td><span class="badge badge-gray">${r.aisle}</span></td>
-      <td><span class="jan-code">${r.jan}</span></td>
-      <td><span class="own-label">自社</span><span class="own-code">${r.own_code}</span></td>
-      <td style="font-weight:600">${r.name}</td>
-      <td><span class="badge badge-gray">${r.category}</span></td>
-      <td>${r.expiry}</td>
-      <td style="text-align:center">${qtyCell}</td>
-      <td>${r.sell_by||'—'}</td>
-      <td>${badgeFor(r.days,ad)}</td>
-      <td>${locCell}</td>
-      <td style="color:#888">${r.staff}</td>
-      <td style="color:#888;font-size:11px">${r.registered_at}</td>
+      <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
+      <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
+      <td data-col="2"><span class="badge badge-gray">${r.aisle}</span></td>
+      <td data-col="3"><span class="jan-code">${r.jan}</span></td>
+      <td data-col="4"><span class="own-label">自社</span><span class="own-code">${r.own_code}</span></td>
+      <td data-col="5" style="font-weight:600">${r.name}</td>
+      <td data-col="6"><span class="badge badge-gray">${r.category}</span></td>
+      <td data-col="7">${r.expiry}</td>
+      <td data-col="8" style="text-align:center">${qtyCell}</td>
+      <td data-col="9">${r.sell_by||'—'}</td>
+      <td data-col="10">${badgeFor(r.days,ad)}</td>
+      <td data-col="11">${locCell}</td>
+      <td data-col="12" style="color:#888">${r.staff}</td>
+      <td data-col="13" style="color:#888;font-size:11px">${r.registered_at}</td>
     </tr>`;
   }).join('');
 
