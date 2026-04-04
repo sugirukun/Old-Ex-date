@@ -897,6 +897,7 @@ function applyColVisibility(){
       const colAttr = cells[i].getAttribute('data-col');
       if(colAttr === null || colAttr === 'del') continue;
       const col = parseInt(colAttr);
+      if(isNaN(col)) continue;
       cells[i].style.display = hiddenCols.has(col) ? 'none' : '';
     }
   });
