@@ -121,8 +121,9 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 .dialog-box p{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
 .dialog-btn{width:100%;padding:13px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:none;margin-bottom:8px;text-align:left;}
 .dialog-btn-blue{background:#185FA5;color:#fff;}
-.dialog-btn-gray{background:#f0f0f0;color:#555;}
-.dialog-btn-cancel{background:none;color:#aaa;font-size:13px;text-align:center;}
+.dialog-btn-red{background:#c0392b;color:#fff;}
+.dialog-btn-gray{background:#f0f0f0;color:#666;}
+.dialog-btn-cancel{background:#e5e5e5;color:#666;font-size:13px;text-align:center;}
 /* ===== TOAST ===== */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:999;}
 #toast.show{opacity:1;}
@@ -147,7 +148,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <h3 id="dialog-title"></h3>
     <p id="dialog-msg"></p>
     <button class="dialog-btn dialog-btn-blue" id="dialog-btn1" onclick="dialogAction(1)"></button>
-    <button class="dialog-btn dialog-btn-gray" id="dialog-btn2" onclick="dialogAction(2)"></button>
+    <button class="dialog-btn dialog-btn-red" id="dialog-btn2" onclick="dialogAction(2)"></button>
     <button class="dialog-btn dialog-btn-cancel" onclick="closeDialog()">登録しない</button>
   </div>
 </div>
