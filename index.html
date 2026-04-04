@@ -853,13 +853,7 @@ function badgeFor(days,ad){
 // ===== COLUMN TOGGLE =====
 let hiddenCols = new Set([1,3,6,9,12,13]);
 
-  document.getElementById('mode-default').style.fontWeight=mode==='default'?'700':'400';
-  document.getElementById('mode-custom').style.fontWeight=mode==='custom'?'700':'400';
-  document.getElementById('mode-default').style.color=mode==='default'?'#185FA5':'#888';
-  document.getElementById('mode-custom').style.color=mode==='custom'?'#185FA5':'#888';
-  document.getElementById('col-toggle-bar').style.display=mode==='custom'?'flex':'none';
-  applyColVisibility();
-}
+
 let alertDays=7;
 function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
 
