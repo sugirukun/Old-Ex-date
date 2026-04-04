@@ -304,7 +304,12 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
       <label>日以内</label>
     </div>
-    <div class="col-toggle-bar" id="col-toggle-bar">
+    <div style="padding:6px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:12px;color:#888;">列の表示：</span>
+      <button id="mode-default" onclick="setColMode('default')" style="font-size:12px;color:#185FA5;font-weight:700;background:none;border:none;cursor:pointer;padding:2px 0;">デフォルト</button>
+      <button id="mode-custom" onclick="setColMode('custom')" style="font-size:12px;color:#888;font-weight:400;background:none;border:none;cursor:pointer;padding:2px 0;">カスタム</button>
+    </div>
+    <div class="col-toggle-bar" id="col-toggle-bar" style="display:none;">
       <span>列の表示：</span>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="1" onchange="toggleCol(1,this.checked)"><span class="toggle-slider"></span></label><label>部門</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="2" checked onchange="toggleCol(2,this.checked)"><span class="toggle-slider"></span></label><label>通路</label></div>
@@ -850,13 +855,33 @@ function badgeFor(days,ad){
 }
 
 // ===== COLUMN TOGGLE =====
-let hiddenCols = new Set([1,3,6,9,12,13]);
+const DEFAULT_HIDDEN = new Set([1,3,6,9,12,13]);
+let hiddenCols = new Set(DEFAULT_HIDDEN);
+let colMode = 'default';
+
+function setColMode(mode){
+  colMode = mode;
+  if(mode==='default'){
+    hiddenCols = new Set(DEFAULT_HIDDEN);
+    document.querySelectorAll('.col-toggle-bar input[type=checkbox]').forEach(cb=>{
+      const col=parseInt(cb.getAttribute('data-col'));
+      cb.checked=!DEFAULT_HIDDEN.has(col);
+    });
+  }
+  document.getElementById('mode-default').style.fontWeight=mode==='default'?'700':'400';
+  document.getElementById('mode-custom').style.fontWeight=mode==='custom'?'700':'400';
+  document.getElementById('mode-default').style.color=mode==='default'?'#185FA5':'#888';
+  document.getElementById('mode-custom').style.color=mode==='custom'?'#185FA5':'#888';
+  document.getElementById('col-toggle-bar').style.display=mode==='custom'?'flex':'none';
+  applyColVisibility();
+}
 
 
 let alertDays=7;
 function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
 
 function toggleCol(col, visible){
+  colMode='custom';
   if(visible) hiddenCols.delete(col);
   else hiddenCols.add(col);
   applyColVisibility();
