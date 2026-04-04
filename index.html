@@ -881,6 +881,7 @@ let alertDays=7;
 function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
 
 function toggleCol(col, visible){
+  colMode='custom';
   if(visible) hiddenCols.delete(col);
   else hiddenCols.add(col);
   applyColVisibility();
