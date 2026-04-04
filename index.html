@@ -550,7 +550,7 @@ async function toggleOCR(){
     video.srcObject=stream;
     // 自動認識ループ開始
     video.addEventListener('play',()=>{
-      ocrAutoTimer=setInterval(captureOCR,1500);
+      ocrAutoTimer=setInterval(captureOCR,800);
     },{once:true});
   }catch(e){
     toast('カメラを起動できませんでした');
