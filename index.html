@@ -317,6 +317,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         <thead>
           <tr>
             <th data-col="0">済</th>
+            <th style="width:36px;min-width:36px;">削除</th>
             <th data-col="1" onclick="sortBy('department')">部門 ↕</th>
             <th data-col="2" onclick="sortBy('aisle')">通路 ↕</th>
             <th data-col="3">JANコード</th>
@@ -345,7 +346,7 @@ const SUPABASE_URL = 'https://hloolqqmdvqfuaoydkmq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
 // ============================================================
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL
 
 const today = new Date(); today.setHours(0,0,0,0);
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
@@ -834,6 +835,7 @@ function renderList(){
     const locCell=r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`;
     return`<tr class="${r.checked?'checked-row':''}">
       <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
+      <td style="text-align:center"><button onclick="deleteRecord('${r.id}',${r.is_archive||false})" style="background:none;border:none;font-size:16px;cursor:pointer;color:#e53;">🗑</button></td>
       <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
       <td data-col="2"><span class="badge badge-gray">${r.aisle}</span></td>
       <td data-col="3"><span class="jan-code">${r.jan}</span></td>
@@ -851,6 +853,19 @@ function renderList(){
   }).join('');
 
   applyColVisibility();
+}
+
+async function deleteRecord(id, isArchive){
+  if(!confirm('このデータを完全に削除しますか？\nこの操作は取り消せません。'))return;
+  showLoading(true);
+  if(isArchive){
+    await sb.from('expiry_archives').delete().eq('id',id);
+  } else {
+    await sb.from('expiry_records').delete().eq('id',id);
+  }
+  showLoading(false);
+  toast('削除しました');
+  loadList();
 }
 
 async function toggleCheck(id,current){
