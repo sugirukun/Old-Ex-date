@@ -274,6 +274,11 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         <option value="warn" selected>警告圏内</option>
         <option value="ok">余裕あり</option>
       </select>
+      <label>履歴：</label>
+      <select id="filter-archive" onchange="loadList()">
+        <option value="current">現役のみ</option>
+        <option value="archive">履歴を含む</option>
+      </select>
       <label>通路：</label>
       <select id="filter-aisle" onchange="renderList()"><option value="all">すべて</option></select>
       <span id="dept-filter-wrap" style="display:none;align-items:center;gap:8px;"><label>部門：</label><select id="filter-dept" onchange="renderList()"><option value="all">すべて</option></select></span>
@@ -672,20 +677,41 @@ function clearForm(){
 // ===== LIST =====
 async function loadList(){
   showLoading(true);
-  const {data,error}=await sb
+  const archiveMode=document.getElementById('filter-archive')?.value||'current';
+  let current=[], archives=[];
+
+  const {data:d1,error:e1}=await sb
     .from('expiry_records')
-    .select(`*, products(name, own_code, category, department)`)
+    .select('*, products(name, own_code, category, department)')
     .order('expiry',{ascending:true});
-  showLoading(false);
-  if(error){toast('データ取得に失敗しました');return;}
-  listData=data.map(r=>({
+  if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
+  current=d1.map(r=>({
     ...r,
     name:r.products?.name||'—',
     own_code:r.products?.own_code||'—',
     category:r.products?.category||'—',
     department:r.products?.department||'—',
-    days:daysLeft(r.expiry)
+    days:daysLeft(r.expiry),
+    is_archive:false
   }));
+
+  if(archiveMode==='archive'){
+    const {data:d2}=await sb
+      .from('expiry_archives')
+      .select('*')
+      .order('checked_at',{ascending:false});
+    if(d2){
+      archives=d2.map(r=>({
+        ...r,
+        days:daysLeft(r.expiry),
+        checked:true,
+        is_archive:true
+      }));
+    }
+  }
+
+  listData=[...current,...archives];
+  showLoading(false);
   populateFilterSelects();
   renderList();
 }
@@ -828,14 +854,48 @@ function renderList(){
 }
 
 async function toggleCheck(id,current){
-  const newChecked=!current;
-  const update={checked:newChecked};
-  if(newChecked)update.expired_qty=0;
-  const{error}=await sb.from('expiry_records').update(update).eq('id',id);
-  if(error){toast('更新に失敗しました');return;}
   const item=listData.find(r=>r.id===id);
-  if(item){item.checked=newChecked;if(newChecked)item.expired_qty=0;}
-  renderList();
+  if(!item)return;
+
+  if(!current){
+    // 済にする→アーカイブに移動
+    const{error:archErr}=await sb.from('expiry_archives').insert({
+      jan:item.jan,
+      aisle:item.aisle,
+      expiry:item.expiry,
+      expired_qty:0,
+      sell_by:item.sell_by,
+      discount_location:item.discount_location,
+      staff:item.staff,
+      registered_at:item.registered_at,
+      checked_at:todayStr(),
+      department:item.department,
+      name:item.name,
+      own_code:item.own_code,
+      category:item.category
+    });
+    if(archErr){toast('アーカイブに失敗しました：'+archErr.message);return;}
+    const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
+    if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
+    toast('済にしてアーカイブしました');
+  } else {
+    // 済を解除→アーカイブから戻す
+    const{error:restErr}=await sb.from('expiry_records').insert({
+      jan:item.jan,
+      aisle:item.aisle,
+      expiry:item.expiry,
+      expired_qty:item.expired_qty,
+      sell_by:item.sell_by,
+      discount_location:item.discount_location,
+      staff:item.staff,
+      registered_at:item.registered_at,
+      checked:false
+    });
+    if(restErr){toast('復元に失敗しました：'+restErr.message);return;}
+    await sb.from('expiry_archives').delete().eq('id',id);
+    toast('済を解除して現役に戻しました');
+  }
+  loadList();
 }
 </script>
 </body>
