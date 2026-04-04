@@ -668,6 +668,10 @@ function updateDays(v){
 document.addEventListener('DOMContentLoaded',()=>{
   const ei=document.getElementById('reg-expiry');
   if(ei)ei.addEventListener('input',()=>updateDays());
+  const ji=document.getElementById('jan-input');
+  if(ji)ji.addEventListener('keydown',e=>{
+    if(e.key==='Enter')lookupJAN();
+  });
 });
 
 // ===== REGISTER =====
