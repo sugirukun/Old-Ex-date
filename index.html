@@ -888,18 +888,26 @@ function toggleCol(col, visible){
 }
 
 function applyColVisibility(){
+  // theadとtbodyのth/tdだけを対象にする
   const table = document.querySelector('#panel-list table');
   if(!table) return;
-  const rows = table.querySelectorAll('tr');
-  rows.forEach(row=>{
-    const cells = row.children;
-    for(let i=0;i<cells.length;i++){
-      const colAttr = cells[i].getAttribute('data-col');
-      if(colAttr === null || colAttr === 'del') continue;
-      const col = parseInt(colAttr);
-      if(isNaN(col)) continue;
-      cells[i].style.display = hiddenCols.has(col) ? 'none' : '';
-    }
+  // ヘッダー
+  table.querySelectorAll('thead th[data-col]').forEach(th=>{
+    const colAttr=th.getAttribute('data-col');
+    if(colAttr==='del')return;
+    const col=parseInt(colAttr);
+    if(isNaN(col))return;
+    th.style.display=hiddenCols.has(col)?'none':'';
+  });
+  // ボディ
+  table.querySelectorAll('tbody tr').forEach(row=>{
+    row.querySelectorAll('td[data-col]').forEach(td=>{
+      const colAttr=td.getAttribute('data-col');
+      if(colAttr==='del')return;
+      const col=parseInt(colAttr);
+      if(isNaN(col))return;
+      td.style.display=hiddenCols.has(col)?'none':'';
+    });
   });
 }
 
