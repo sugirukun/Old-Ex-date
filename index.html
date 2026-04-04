@@ -29,9 +29,11 @@ input,select,button,textarea{font-family:inherit;}
 .tabs{display:flex;background:#fff;border-bottom:1px solid #eee;position:sticky;top:53px;z-index:99;}
 .tab{flex:1;padding:12px;font-size:14px;text-align:center;cursor:pointer;color:#888;border-bottom:2px solid transparent;}
 .tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:500;}
+.tab button{all:unset;display:block;width:100%;text-align:center;cursor:pointer;}
 
 /* ===== REGISTER ===== */
 #panel-register{padding:16px;}
+#panel-list{display:none;padding-bottom:24px;}
 .section{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;}
 .section h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;}
 .field{margin-bottom:14px;}
@@ -77,7 +79,7 @@ input,select,button,textarea{font-family:inherit;}
 .filter-bar select,.filter-bar input[type=number]{font-size:13px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;-webkit-appearance:none;white-space:nowrap;}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;}
-thead th{padding:8px 9px;text-align:left;font-weight:600;font-size:11px;color:#888;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;white-space:normal;line-height:1.4;min-width:55px;cursor:pointer;user-select:none;}
+thead th{padding:8px 9px;text-align:left;font-weight:600;font-size:11px;color:#888;border-bottom:1px solid #eee;position:sticky;top:94px;background:#fff;white-space:normal;line-height:1.4;min-width:55px;cursor:pointer;user-select:none;z-index:2;}
 thead th:hover{color:#185FA5;}
 tbody tr{border-bottom:1px solid #f0f0f0;}
 tbody tr:active{background:#f8f8f8;}
@@ -182,6 +184,10 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <h1>賞味期限管理</h1>
     <span class="staff-badge" id="staff-disp"></span>
     <span class="staff-badge" id="dept-disp" style="background:#e8f0fe;color:#185FA5;"></span>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tab-register"><button type="button" onclick="switchTab('register')">商品登録</button></div>
+    <div class="tab" id="tab-list"><button type="button" onclick="switchTab('list')">一覧・確認</button></div>
   </div>
 
   <!-- REGISTER -->
@@ -391,6 +397,18 @@ function toast(msg,duration=2500){
 
 // ===== LOGIN =====
 let currentDept='';
+let currentTab='register';
+
+function switchTab(tab){
+  currentTab=tab;
+  const showRegister=tab==='register';
+  document.getElementById('panel-register').style.display=showRegister?'block':'none';
+  document.getElementById('panel-list').style.display=showRegister?'none':'block';
+  document.getElementById('tab-register').classList.toggle('active',showRegister);
+  document.getElementById('tab-list').classList.toggle('active',!showRegister);
+  if(!showRegister) applyColVisibility();
+}
+
 function doLogin(){
   const n=document.getElementById('login-name').value.trim();
   const d=document.getElementById('login-dept').value;
@@ -405,6 +423,7 @@ function doLogin(){
   document.getElementById('reg-staff').value=n;
   document.getElementById('reg-date').value=todayStr();
   buildAisleSelect();
+  switchTab('register');
   loadList();
 }
 
@@ -666,6 +685,8 @@ function updateDays(v){
   }
 }
 document.addEventListener('DOMContentLoaded',()=>{
+  switchTab('register');
+  setColMode('default');
   const ei=document.getElementById('reg-expiry');
   if(ei)ei.addEventListener('input',()=>updateDays());
   const ji=document.getElementById('jan-input');
