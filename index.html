@@ -777,21 +777,40 @@ function closeDialog(){
   pendingRegister=null;
 }
 
+async function archiveRecord(record){
+  const archivePayload={
+    jan:record.jan,
+    aisle:record.aisle,
+    expiry:record.expiry,
+    expired_qty:record.expired_qty||0,
+    sell_by:record.sell_by,
+    discount_location:record.discount_location,
+    staff:record.staff,
+    registered_at:record.registered_at,
+    checked_at:todayStr(),
+    department:record.department,
+    name:record.name,
+    own_code:record.own_code,
+    category:record.category
+  };
+  const {error:archErr}=await sb.from('expiry_archives').insert(archivePayload);
+  if(archErr) return archErr;
+  const {error:delErr}=await sb.from('expiry_records').delete().eq('id',record.id);
+  return delErr||null;
+}
+
 async function dialogAction(btn){
   if(!pendingRegister)return;
   const{jan,aisle,expiryFmt,qty,sellByFmt,discount}=pendingRegister;
   closeDialog();
   if(btn===1){
-    // 同じ通路・同じ期限が済でない場合は新規追加、済の場合は上書き
+    // 同じ通路の現役レコードはアーカイブへ移動してから登録
     const sameAisleRecords=listData.filter(r=>r.jan===jan&&r.aisle===aisle);
-    const unchecked=sameAisleRecords.filter(r=>!r.checked);
-    if(unchecked.length>0){
-      // 古い未済レコードを済にする
-      for(const rec of unchecked){
-        await sb.from('expiry_records').update({checked:true,expired_qty:0}).eq('id',rec.id);
-      }
+    const currentRecords=sameAisleRecords.filter(r=>!r.is_archive);
+    for(const rec of currentRecords){
+      const err=await archiveRecord(rec);
+      if(err){toast('旧データの退避に失敗しました：'+err.message);return;}
     }
-    // 新規追加（upsertではなくinsert）
     showLoading(true);
     const{error}=await sb.from('expiry_records').insert({
       jan,aisle,expiry:expiryFmt,expired_qty:qty,
@@ -821,6 +840,12 @@ async function dialogAction(btn){
 
 async function doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount){
   showLoading(true);
+  const existingSame= listData.find(r=>!r.is_archive && r.jan===jan && r.aisle===aisle && r.expiry===expiryFmt);
+  if(existingSame){
+    showLoading(false);
+    toast('同じ通路・同じ賞味期限のデータがすでにあります');
+    return;
+  }
   const{error}=await sb.from('expiry_records').insert({
     jan,aisle,expiry:expiryFmt,expired_qty:qty,
     sell_by:sellByFmt,discount_location:discount,
