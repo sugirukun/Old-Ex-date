@@ -739,10 +739,13 @@ async function registerItem(){
   if(!currentMaster){toast('JANコードを読み込んでください');return;}
   const aisle=document.getElementById('reg-aisle').value;
   const expiryRaw=document.getElementById('reg-expiry').value.replace(/\D/g,'');
-  const qty=parseInt(document.getElementById('reg-expiredQty').value)||0;
+  const qtyRaw=document.getElementById('reg-expiredQty').value.trim();
+  const qty=parseInt(qtyRaw,10);
   const discount=getRegisterDiscountValue();
   if(!aisle){toast('通路番号を選択してください');return;}
   if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
+  if(qtyRaw===''||Number.isNaN(qty)||qty<0){toast('期限切れ個数を入力してください');return;}
+  if(!discount){toast('値下げ処理商品の場所を入力してください');return;}
   const ep=expiryRaw;
   const expiryFmt=`${ep.slice(0,4)}-${ep.slice(4,6)}-${ep.slice(6,8)}`;
   const sellByDt=new Date(parseInt(ep.slice(0,4)),parseInt(ep.slice(4,6))-1,parseInt(ep.slice(6,8)));
