@@ -95,10 +95,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 .own-code{font-size:11px;color:#666;font-family:monospace;}
 .jan-code{font-family:monospace;font-size:11px;color:#555;letter-spacing:0.5px;width:110px;display:inline-block;}
 .empty-row{padding:40px;text-align:center;color:#aaa;font-size:14px;}
-.qty-stepper{display:inline-flex;align-items:center;gap:6px;}
-.qty-stepper button{width:24px;height:24px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;font-size:14px;line-height:1;cursor:pointer;}
-.qty-stepper button:disabled{opacity:.4;cursor:default;}
-.qty-value{min-width:28px;text-align:center;font-weight:600;color:#1a1a1a;}
 
 /* toggle switches */
 .col-toggle-bar{padding:8px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
@@ -120,10 +116,22 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 .dialog-box h3{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:8px;}
 .dialog-box p{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
 .dialog-btn{width:100%;padding:13px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:none;margin-bottom:8px;text-align:left;}
-.dialog-btn-blue{background:#185FA5 !important;color:#fff !important;}
-.dialog-btn-red{background:#c0392b !important;color:#fff !important;}
-.dialog-btn-gray{background:#f0f0f0 !important;color:#666 !important;}
-.dialog-btn-cancel{background:#e5e5e5 !important;color:#666 !important;font-size:13px;text-align:center;}
+.dialog-btn-blue{background:#185FA5;color:#fff;}
+.dialog-btn-gray{background:#f0f0f0;color:#555;}
+.dialog-btn-cancel{background:none;color:#aaa;font-size:13px;text-align:center;}
+/* ===== PRINT ===== */
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { position: fixed; top: 0; left: 0; width: 100%; }
+  @page { size: A4 portrait; margin: 10mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead { display: table-header-group; }
+  th { background: #f0f0f0 !important; border: 1px solid #ccc; padding: 4px 6px; font-weight: 600; }
+  td { border: 1px solid #ccc; padding: 4px 6px; }
+  .badge { border: 1px solid #999; padding: 1px 4px; border-radius: 3px; }
+  .no-print { display: none !important; }
+}
 /* ===== TOAST ===== */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:999;}
 #toast.show{opacity:1;}
@@ -148,8 +156,8 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <h3 id="dialog-title"></h3>
     <p id="dialog-msg"></p>
     <button class="dialog-btn dialog-btn-blue" id="dialog-btn1" onclick="dialogAction(1)"></button>
-    <button class="dialog-btn dialog-btn-red" id="dialog-btn2" onclick="dialogAction(2)"></button>
-    <button class="dialog-btn dialog-btn-cancel" id="dialog-cancel" onclick="closeDialog()">登録しない</button>
+    <button class="dialog-btn dialog-btn-gray" id="dialog-btn2" onclick="dialogAction(2)"></button>
+    <button class="dialog-btn dialog-btn-cancel" onclick="closeDialog()">登録しない</button>
   </div>
 </div>
 
@@ -187,6 +195,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <h1>賞味期限管理</h1>
     <span class="staff-badge" id="staff-disp"></span>
     <span class="staff-badge" id="dept-disp" style="background:#e8f0fe;color:#185FA5;"></span>
+    <button onclick="printList()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;">🖨 印刷</button>
   </div>
 
   <!-- REGISTER -->
@@ -249,17 +258,11 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         </div>
         <div class="field">
           <label>期限切れ個数</label>
-          <input type="number" id="reg-expiredQty" placeholder="0" inputmode="numeric" min="0" />
+          <input type="number" id="reg-expiredQty" placeholder="0" inputmode="numeric" min="0" value="0" />
         </div>
         <div class="field">
           <label>値下げ処理商品の場所</label>
-          <select id="reg-discount-type" onchange="handleRegisterDiscountTypeChange()">
-            <option value="">選択してください</option>
-            <option value="売り切りワゴン">売り切りワゴン</option>
-            <option value="定番棚のまま">定番棚のまま</option>
-            <option value="custom">フリーワード入力</option>
-          </select>
-          <input type="text" id="reg-discount-custom" placeholder="場所を入力" style="display:none;margin-top:8px;" />
+          <textarea id="reg-discount" placeholder="例：A-1通路端 値下棚"></textarea>
         </div>
         <div class="field">
           <label>担当者</label>
@@ -373,57 +376,12 @@ const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const today = new Date(); today.setHours(0,0,0,0);
-const DISCOUNT_PRESETS = ['売り切りワゴン','定番棚のまま'];
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
 function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
 function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
 function todayStr(){
   const jst=new Date(today.getTime()+9*60*60*1000);
   return jst.toISOString().slice(0,10);
-}
-
-function getDiscountState(value=''){
-  const trimmed=(value||'').trim();
-  if(!trimmed)return{type:'',custom:''};
-  if(DISCOUNT_PRESETS.includes(trimmed))return{type:trimmed,custom:''};
-  return{type:'custom',custom:trimmed};
-}
-
-function getRegisterDiscountValue(){
-  const type=document.getElementById('reg-discount-type').value;
-  if(type==='custom')return document.getElementById('reg-discount-custom').value.trim();
-  return type;
-}
-
-function setRegisterDiscountValue(value=''){
-  const state=getDiscountState(value);
-  document.getElementById('reg-discount-type').value=state.type;
-  document.getElementById('reg-discount-custom').value=state.custom;
-  handleRegisterDiscountTypeChange();
-}
-
-function handleRegisterDiscountTypeChange(){
-  const type=document.getElementById('reg-discount-type').value;
-  const custom=document.getElementById('reg-discount-custom');
-  const showCustom=type==='custom';
-  custom.style.display=showCustom?'block':'none';
-  if(!showCustom)custom.value='';
-}
-
-function buildDiscountOptions(selectedType=''){
-  return [
-    `<option value="" ${selectedType===''?'selected':''}>選択してください</option>`,
-    ...DISCOUNT_PRESETS.map(v=>`<option value="${v}" ${selectedType===v?'selected':''}>${v}</option>`),
-    `<option value="custom" ${selectedType==='custom'?'selected':''}>フリーワード入力</option>`
-  ].join('');
-}
-
-function escapeAttr(value=''){
-  return String(value)
-    .replace(/&/g,'&amp;')
-    .replace(/"/g,'&quot;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;');
 }
 
 const AISLES=[];
@@ -447,7 +405,6 @@ function toast(msg,duration=2500){
 
 // ===== LOGIN =====
 let currentDept='';
-
 function doLogin(){
   const n=document.getElementById('login-name').value.trim();
   const d=document.getElementById('login-dept').value;
@@ -702,8 +659,8 @@ async function lookupJAN(){
     if(rec){
       const exStr=rec.expiry.replace(/-/g,'');
       document.getElementById('reg-expiry').value=exStr;
-      document.getElementById('reg-expiredQty').value=rec.expired_qty ?? '';
-      setRegisterDiscountValue(rec.discount_location||'');
+      document.getElementById('reg-expiredQty').value=rec.expired_qty||0;
+      document.getElementById('reg-discount').value=rec.discount_location||'';
       updateDays(exStr);
     }
   }
@@ -723,8 +680,6 @@ function updateDays(v){
   }
 }
 document.addEventListener('DOMContentLoaded',()=>{
-  setColMode('default');
-  setRegisterDiscountValue('');
   const ei=document.getElementById('reg-expiry');
   if(ei)ei.addEventListener('input',()=>updateDays());
   const ji=document.getElementById('jan-input');
@@ -740,13 +695,10 @@ async function registerItem(){
   if(!currentMaster){toast('JANコードを読み込んでください');return;}
   const aisle=document.getElementById('reg-aisle').value;
   const expiryRaw=document.getElementById('reg-expiry').value.replace(/\D/g,'');
-  const qtyRaw=document.getElementById('reg-expiredQty').value.trim();
-  const qty=parseInt(qtyRaw,10);
-  const discount=getRegisterDiscountValue();
+  const qty=parseInt(document.getElementById('reg-expiredQty').value)||0;
+  const discount=document.getElementById('reg-discount').value.trim();
   if(!aisle){toast('通路番号を選択してください');return;}
   if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
-  if(qtyRaw===''||Number.isNaN(qty)||qty<0){toast('期限切れ個数を入力してください');return;}
-  if(!discount){toast('値下げ処理商品の場所を入力してください');return;}
   const ep=expiryRaw;
   const expiryFmt=`${ep.slice(0,4)}-${ep.slice(4,6)}-${ep.slice(6,8)}`;
   const sellByDt=new Date(parseInt(ep.slice(0,4)),parseInt(ep.slice(4,6))-1,parseInt(ep.slice(6,8)));
@@ -756,14 +708,21 @@ async function registerItem(){
   // 同じJANで既存登録があるか確認
   const existing=listData.filter(r=>r.jan===currentMaster.jan);
   if(existing.length>0){
-    // 同一通路に登録があるか
-    const sameAisle=existing.find(r=>r.aisle===aisle);
-    pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount,sameAisle};
+    // 同一通路・同一賞味期限のレコードがあるか
+    const sameAisleExpiry=existing.find(r=>r.aisle===aisle&&r.expiry===expiryFmt&&!r.is_archive);
+    if(sameAisleExpiry){
+      pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount,overwrite:true,overwriteId:sameAisleExpiry.id};
+      document.getElementById('dialog-title').textContent='同じ登録があります';
+      document.getElementById('dialog-msg').textContent=`同じ通路で同じ賞味期限の登録があります。上書きになりますが続行しますか？`;
+      document.getElementById('dialog-btn1').textContent='はい（上書き）';
+      document.getElementById('dialog-btn2').textContent='いいえ（キャンセル）';
+      document.getElementById('dialog-overlay').classList.add('show');
+      return;
+    }
+    // 同一通路・異なる期限または異なる通路
+    pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount};
     document.getElementById('dialog-title').textContent='同じ商品がすでに登録済みです';
     document.getElementById('dialog-msg').textContent=`「${currentMaster.name}」はすでに登録されています。どうしますか？`;
-    document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
-    document.getElementById('dialog-btn2').className='dialog-btn dialog-btn-red';
-    document.getElementById('dialog-cancel').className='dialog-btn dialog-btn-cancel';
     document.getElementById('dialog-btn1').textContent='同じ通路で別の期限で登録する';
     document.getElementById('dialog-btn2').textContent='異なる通路番号で登録する（複数箇所陳列用）';
     document.getElementById('dialog-overlay').classList.add('show');
@@ -777,40 +736,36 @@ function closeDialog(){
   pendingRegister=null;
 }
 
-async function archiveRecord(record){
-  const archivePayload={
-    jan:record.jan,
-    aisle:record.aisle,
-    expiry:record.expiry,
-    expired_qty:record.expired_qty||0,
-    sell_by:record.sell_by,
-    discount_location:record.discount_location,
-    staff:record.staff,
-    registered_at:record.registered_at,
-    checked_at:todayStr(),
-    department:record.department,
-    name:record.name,
-    own_code:record.own_code,
-    category:record.category
-  };
-  const {error:archErr}=await sb.from('expiry_archives').insert(archivePayload);
-  if(archErr) return archErr;
-  const {error:delErr}=await sb.from('expiry_records').delete().eq('id',record.id);
-  return delErr||null;
-}
-
 async function dialogAction(btn){
   if(!pendingRegister)return;
-  const{jan,aisle,expiryFmt,qty,sellByFmt,discount}=pendingRegister;
+  const{jan,aisle,expiryFmt,qty,sellByFmt,discount,overwrite,overwriteId}=pendingRegister;
   closeDialog();
+  if(btn===2&&overwrite){return;} // いいえ（キャンセル）
+  if(btn===1&&overwrite){
+    // 同じ通路・同じ期限を上書き
+    showLoading(true);
+    const{error}=await sb.from('expiry_records').update({
+      expired_qty:qty,discount_location:discount,
+      staff:currentStaff,registered_at:todayStr(),checked:false
+    }).eq('id',overwriteId);
+    showLoading(false);
+    if(error){toast('更新に失敗しました：'+error.message);return;}
+    toast('上書き登録しました：'+currentMaster.name+' / '+aisle);
+    clearForm();
+    loadList();
+    return;
+  }
   if(btn===1){
-    // 同じ通路の現役レコードはアーカイブへ移動してから登録
+    // 同じ通路・同じ期限が済でない場合は新規追加、済の場合は上書き
     const sameAisleRecords=listData.filter(r=>r.jan===jan&&r.aisle===aisle);
-    const currentRecords=sameAisleRecords.filter(r=>!r.is_archive);
-    for(const rec of currentRecords){
-      const err=await archiveRecord(rec);
-      if(err){toast('旧データの退避に失敗しました：'+err.message);return;}
+    const unchecked=sameAisleRecords.filter(r=>!r.checked);
+    if(unchecked.length>0){
+      // 古い未済レコードを済にする
+      for(const rec of unchecked){
+        await sb.from('expiry_records').update({checked:true,expired_qty:0}).eq('id',rec.id);
+      }
     }
+    // 新規追加（upsertではなくinsert）
     showLoading(true);
     const{error}=await sb.from('expiry_records').insert({
       jan,aisle,expiry:expiryFmt,expired_qty:qty,
@@ -840,12 +795,6 @@ async function dialogAction(btn){
 
 async function doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount){
   showLoading(true);
-  const existingSame= listData.find(r=>!r.is_archive && r.jan===jan && r.aisle===aisle && r.expiry===expiryFmt);
-  if(existingSame){
-    showLoading(false);
-    toast('同じ通路・同じ賞味期限のデータがすでにあります');
-    return;
-  }
   const{error}=await sb.from('expiry_records').insert({
     jan,aisle,expiry:expiryFmt,expired_qty:qty,
     sell_by:sellByFmt,discount_location:discount,
@@ -864,9 +813,9 @@ function clearForm(){
   document.getElementById('master-result').style.display='none';
   document.getElementById('reg-aisle').value='';
   document.getElementById('reg-expiry').value='';
-  document.getElementById('reg-expiredQty').value='';
+  document.getElementById('reg-expiredQty').value='0';
   document.getElementById('reg-days').value='';
-  setRegisterDiscountValue('');
+  document.getElementById('reg-discount').value='';
 }
 
 // ===== LIST =====
@@ -1005,53 +954,6 @@ function applyColVisibility(){
   });
 }
 
-async function adjustExpiredQty(id, delta, isArchive){
-  if(isArchive) return;
-  const item=listData.find(r=>r.id===id && !r.is_archive);
-  if(!item) return;
-  const nextQty=Math.max(0,(parseInt(item.expired_qty,10)||0)+delta);
-  if(nextQty===item.expired_qty) return;
-  showLoading(true);
-  const {error}=await sb.from('expiry_records').update({expired_qty:nextQty}).eq('id',id);
-  showLoading(false);
-  if(error){toast('個数更新に失敗しました：'+error.message);return;}
-  item.expired_qty=nextQty;
-  renderList();
-}
-
-async function updateDiscountLocation(id, value, isArchive){
-  if(isArchive) return;
-  const item=listData.find(r=>r.id===id && !r.is_archive);
-  if(!item) return;
-  const nextValue=(value||'').trim();
-  showLoading(true);
-  const {error}=await sb.from('expiry_records').update({discount_location:nextValue}).eq('id',id);
-  showLoading(false);
-  if(error){toast('場所更新に失敗しました：'+error.message);return;}
-  item.discount_location=nextValue;
-  renderList();
-}
-
-function handleListDiscountTypeChange(id, value){
-  const input=document.getElementById(`discount-custom-${id}`);
-  if(!input) return;
-  const showCustom=value==='custom';
-  input.style.display=showCustom?'block':'none';
-  if(showCustom){
-    input.focus();
-    return;
-  }
-  input.value='';
-  updateDiscountLocation(id, value, false);
-}
-
-function saveListDiscountCustom(id){
-  const select=document.getElementById(`discount-type-${id}`);
-  const input=document.getElementById(`discount-custom-${id}`);
-  if(!select || !input || select.value!=='custom') return;
-  updateDiscountLocation(id, input.value, false);
-}
-
 function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderList();}
 
 function renderList(){
@@ -1083,31 +985,8 @@ function renderList(){
   const tbody=document.getElementById('tbody');
   if(!rows.length){tbody.innerHTML=`<tr><td colspan="14" class="empty-row">該当する商品はありません</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>{
-    const qty=r.expired_qty||0;
-    const qtyCell=r.is_archive
-      ? (qty>0?`<span class="badge badge-red">${qty}個</span>`:`<span class="muted">—</span>`)
-      : `<div class="qty-stepper">
-          <button type="button" onclick="adjustExpiredQty('${r.id}',-1,false)" ${qty<=0?'disabled':''}>-</button>
-          <span class="qty-value">${qty}</span>
-          <button type="button" onclick="adjustExpiredQty('${r.id}',1,false)">+</button>
-        </div>`;
-    const discountState=getDiscountState(r.discount_location||'');
-    const locCell=r.is_archive
-      ? (r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`)
-      : `<div style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
-          <select id="discount-type-${r.id}" onchange="handleListDiscountTypeChange('${r.id}',this.value)" style="font-size:12px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;">
-            ${buildDiscountOptions(discountState.type)}
-          </select>
-          <input
-            id="discount-custom-${r.id}"
-            type="text"
-            value="${escapeAttr(discountState.custom)}"
-            placeholder="場所を入力"
-            style="display:${discountState.type==='custom'?'block':'none'};font-size:12px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;"
-            onblur="saveListDiscountCustom('${r.id}')"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-          />
-        </div>`;
+    const qtyCell=r.expired_qty>0?`<span class="badge badge-red">${r.expired_qty}個</span>`:`<span class="muted">—</span>`;
+    const locCell=r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`;
     return`<tr class="${r.checked?'checked-row':''}">
       <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
       <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
@@ -1141,6 +1020,78 @@ async function deleteRecord(id, isArchive){
   showLoading(false);
   toast('削除しました');
   loadList();
+}
+
+function printList(){
+  // 印刷エリアを生成
+  const existing=document.getElementById('print-area');
+  if(existing)existing.remove();
+
+  const ad=alertDays;
+  const fs=document.getElementById('filter-status').value;
+  const fa=document.getElementById('filter-aisle').value;
+  const fc=document.getElementById('filter-cat').value;
+  const fd=document.getElementById('filter-dept').value;
+
+  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
+  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+  if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+  if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
+  rows.sort((a,b)=>{
+    let av=a['expiry'],bv=b['expiry'];
+    av=new Date(av);bv=new Date(bv);
+    return av<bv?-1:av>bv?1:0;
+  });
+
+  // 表示中の列を取得
+  const visibleCols=[];
+  const colNames={0:'済',1:'部門',2:'通路',3:'JANコード',4:'自社コード',5:'商品名',6:'カテゴリ',7:'最古賞味期限',8:'期限切れ個数',9:'販売期限切れ日',10:'残日数',11:'値下処理商品の場所',12:'担当者',13:'登録日'};
+  for(let i=0;i<=13;i++){
+    if(!hiddenCols.has(i))visibleCols.push(i);
+  }
+
+  const div=document.createElement('div');
+  div.id='print-area';
+  div.style.cssText='display:none;';
+
+  let html=`<div style="font-size:12px;margin-bottom:6px;">賞味期限管理リスト　${todayStr()}　担当：${currentStaff}　${currentDept}</div>`;
+  html+=`<table><thead><tr>`;
+  visibleCols.forEach(col=>{html+=`<th>${colNames[col]}</th>`;});
+  html+=`</tr></thead><tbody>`;
+
+  rows.forEach(r=>{
+    const days=daysLeft(r.expiry);
+    const s=statusOf(days,ad);
+    const color=s==='expired'?'#fde8e8':s==='warn'?'#fef3e2':'';
+    html+=`<tr style="background:${color}">`;
+    visibleCols.forEach(col=>{
+      switch(col){
+        case 0: html+=`<td style="text-align:center">${r.checked?'✓':''}</td>`;break;
+        case 1: html+=`<td>${r.department||'—'}</td>`;break;
+        case 2: html+=`<td>${r.aisle}</td>`;break;
+        case 3: html+=`<td style="font-family:monospace;font-size:10px">${r.jan}</td>`;break;
+        case 4: html+=`<td style="font-family:monospace">${r.own_code}</td>`;break;
+        case 5: html+=`<td>${r.name}</td>`;break;
+        case 6: html+=`<td>${r.category}</td>`;break;
+        case 7: html+=`<td>${r.expiry}</td>`;break;
+        case 8: html+=`<td style="text-align:center">${r.expired_qty>0?r.expired_qty+'個':'—'}</td>`;break;
+        case 9: html+=`<td>${r.sell_by||'—'}</td>`;break;
+        case 10: html+=`<td style="text-align:center">${days}日</td>`;break;
+        case 11: html+=`<td>${r.discount_location||'—'}</td>`;break;
+        case 12: html+=`<td>${r.staff}</td>`;break;
+        case 13: html+=`<td>${r.registered_at}</td>`;break;
+      }
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table>`;
+  div.innerHTML=html;
+  document.body.appendChild(div);
+  div.style.display='block';
+  window.print();
+  setTimeout(()=>div.remove(),1000);
 }
 
 async function toggleCheck(id,current){
