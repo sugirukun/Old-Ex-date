@@ -190,6 +190,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         </div>
         <p class="cam-hint" id="camera-hint">バーコードをカメラに向けてください</p>
         <div id="scan-debug" style="margin-top:6px;font-size:12px;color:#555;word-break:break-all;"></div>
+        <button id="capture-esl" onclick="captureESLStill()" style="display:none;width:100%;margin-top:8px;padding:10px;border:1px solid #185FA5;border-radius:10px;background:#e8f0fe;color:#185FA5;font-size:14px;cursor:pointer;">この範囲を読み取る</button>
         <button id="stop-camera" onclick="stopCamera()">カメラを停止</button>
       </div>
       <div id="ocr-wrap" style="display:none;margin-top:10px;">
@@ -469,6 +470,7 @@ function buildAisleSelect(){
 
 // ===== CAMERA =====
 let barcodeDetectorActive=false,barcodeDetectorTimer=null,barcodeStream=null;
+let barcodeDetectorInstance=null;
 
 function getScanConfig(){
   return SCAN_CONFIG[scanMode]||SCAN_CONFIG.jan;
@@ -483,6 +485,8 @@ function getScanArea(){
 
 function updateCameraGuide(){
   const guide=document.getElementById('camera-guide');
+  const captureBtn=document.getElementById('capture-esl');
+  if(captureBtn)captureBtn.style.display=scanMode==='esl'?'block':'none';
   if(!guide)return;
   if(scanMode==='esl'){
     const area=getScanArea();
@@ -494,6 +498,64 @@ function updateCameraGuide(){
   }else{
     guide.style.display='none';
   }
+}
+
+function getActiveVideoElement(){
+  return document.getElementById('bd-video')||document.querySelector('#camera-video video');
+}
+
+function captureScanCanvas(video){
+  if(!video || !video.videoWidth || !video.videoHeight)return null;
+  const area=getScanArea();
+  const sx=Math.floor(video.videoWidth*area.left);
+  const sy=Math.floor(video.videoHeight*area.top);
+  const sw=Math.max(1,Math.floor(video.videoWidth*area.width));
+  const sh=Math.max(1,Math.floor(video.videoHeight*area.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=sw;
+  canvas.height=sh;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(video,sx,sy,sw,sh,0,0,sw,sh);
+  return canvas;
+}
+
+async function detectFromStillCanvas(canvas){
+  const config=getScanConfig();
+  if(!canvas)return false;
+  if('BarcodeDetector' in window){
+    try{
+      if(!barcodeDetectorInstance)barcodeDetectorInstance=new BarcodeDetector({formats:config.detectorFormats});
+      const results=await barcodeDetectorInstance.detect(canvas);
+      if(results.length>0){
+        const matched=results.find(result=>applyScannedCode(result.rawValue,result.format||''));
+        if(matched)return true;
+      }
+    }catch(e){}
+  }
+  return await new Promise(resolve=>{
+    Quagga.decodeSingle({
+      src:canvas.toDataURL('image/png'),
+      numOfWorkers:0,
+      locate:true,
+      decoder:{readers:config.quaggaReaders}
+    },result=>{
+      if(result?.codeResult?.code){
+        resolve(applyScannedCode(result.codeResult.code,result.codeResult.format||''));
+        return;
+      }
+      resolve(false);
+    });
+  });
+}
+
+async function captureESLStill(){
+  if(scanMode!=='esl')return;
+  const video=getActiveVideoElement();
+  const canvas=captureScanCanvas(video);
+  if(!canvas){toast('カメラ映像を取得できません');return;}
+  showScanDebug('','still',null,'静止画を解析中');
+  const detected=await detectFromStillCanvas(canvas);
+  if(!detected)showScanDebug('','still',false,'静止画でも読み取れませんでした');
 }
 
 function showScanDebug(rawCode='',format='',accepted=null,normalized=''){
@@ -554,6 +616,7 @@ async function toggleCamera(){
 async function startBarcodeDetector(){
   try{
     const detector=new BarcodeDetector({formats:getScanConfig().detectorFormats});
+    barcodeDetectorInstance=detector;
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
     barcodeStream=stream;
     let video=document.getElementById('bd-video');
@@ -563,6 +626,7 @@ async function startBarcodeDetector(){
       document.getElementById('camera-video').appendChild(video);
     }
     video.srcObject=stream;cameraActive=true;barcodeDetectorActive=true;
+    if(scanMode==='esl')return;
     let cropCanvas=null,cropCtx=null;
     const scan=async()=>{
       if(!barcodeDetectorActive)return;
@@ -598,6 +662,19 @@ async function startBarcodeDetector(){
 async function startQuagga(){
   try{await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}
   catch(e){toast('カメラの許可が必要です');document.getElementById('camera-wrap').style.display='none';return;}
+  if(scanMode==='esl'){
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+    barcodeStream=stream;
+    let video=document.getElementById('bd-video');
+    if(!video){
+      video=document.createElement('video');video.id='bd-video';video.autoplay=true;video.playsInline=true;video.muted=true;
+      video.style.cssText='width:100%;border-radius:10px;background:#000;';
+      document.getElementById('camera-video').appendChild(video);
+    }
+    video.srcObject=stream;
+    cameraActive=true;
+    return;
+  }
   Quagga.offDetected();
   Quagga.init({
     inputStream:{type:'LiveStream',target:document.getElementById('camera-video'),constraints:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}},
@@ -619,10 +696,16 @@ function stopCamera(){
     if(barcodeDetectorTimer)clearTimeout(barcodeDetectorTimer);
     if(barcodeStream)barcodeStream.getTracks().forEach(t=>t.stop());
     const v=document.getElementById('bd-video');if(v)v.remove();
-  }else if(cameraActive){Quagga.stop();}
+  }else if(cameraActive){
+    if(barcodeStream)barcodeStream.getTracks().forEach(t=>t.stop());
+    barcodeStream=null;
+    const v=document.getElementById('bd-video');if(v)v.remove();
+    try{Quagga.stop();}catch(e){}
+  }
   cameraActive=false;document.getElementById('camera-wrap').style.display='none';
   scanStableCode='';
   scanStableCount=0;
+  barcodeDetectorInstance=null;
   updateCameraGuide();
   const el=document.getElementById('scan-debug');if(el)el.textContent='';
 }
