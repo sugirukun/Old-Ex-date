@@ -190,6 +190,15 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         </div>
         <p class="cam-hint" id="camera-hint">バーコードをカメラに向けてください</p>
         <div id="scan-debug" style="margin-top:6px;font-size:12px;color:#555;word-break:break-all;"></div>
+        <div id="esl-diagnostic" style="display:none;margin-top:8px;">
+          <div style="font-size:12px;color:#555;margin-bottom:6px;">診断用フォーマット</div>
+          <select id="esl-format-select" onchange="setESLDiagnosticFormat(this.value)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;background:#fff;font-size:13px;">
+            <option value="itf">ITF / i2of5</option>
+            <option value="code_128">Code 128</option>
+            <option value="code_39">Code 39</option>
+            <option value="codabar">Codabar</option>
+          </select>
+        </div>
         <button id="capture-esl" onclick="captureESLStill()" style="display:none;width:100%;margin-top:8px;padding:10px;border:1px solid #185FA5;border-radius:10px;background:#e8f0fe;color:#185FA5;font-size:14px;cursor:pointer;">この範囲を読み取る</button>
         <button id="stop-camera" onclick="stopCamera()">カメラを停止</button>
       </div>
@@ -406,6 +415,14 @@ let cameraActive=false;
 let scanMode='jan';
 let scanStableCode='';
 let scanStableCount=0;
+let eslDiagnosticFormat='itf';
+
+const ESL_DIAGNOSTIC_CONFIG={
+  itf:{detectorFormats:['itf'],quaggaReaders:['i2of5_reader'],label:'ITF / i2of5'},
+  code_128:{detectorFormats:['code_128'],quaggaReaders:['code_128_reader'],label:'Code 128'},
+  code_39:{detectorFormats:['code_39'],quaggaReaders:['code_39_reader'],label:'Code 39'},
+  codabar:{detectorFormats:['codabar'],quaggaReaders:['codabar_reader'],label:'Codabar'}
+};
 
 const SCAN_CONFIG={
   jan:{
@@ -473,7 +490,11 @@ let barcodeDetectorActive=false,barcodeDetectorTimer=null,barcodeStream=null;
 let barcodeDetectorInstance=null;
 
 function getScanConfig(){
-  return SCAN_CONFIG[scanMode]||SCAN_CONFIG.jan;
+  const config=SCAN_CONFIG[scanMode]||SCAN_CONFIG.jan;
+  if(scanMode!=='esl')return config;
+  const diagnostic=ESL_DIAGNOSTIC_CONFIG[eslDiagnosticFormat];
+  if(!diagnostic)return config;
+  return {...config,detectorFormats:diagnostic.detectorFormats,quaggaReaders:diagnostic.quaggaReaders,diagnosticLabel:diagnostic.label};
 }
 
 function getScanArea(){
@@ -486,7 +507,9 @@ function getScanArea(){
 function updateCameraGuide(){
   const guide=document.getElementById('camera-guide');
   const captureBtn=document.getElementById('capture-esl');
+  const diagnosticWrap=document.getElementById('esl-diagnostic');
   if(captureBtn)captureBtn.style.display=scanMode==='esl'?'block':'none';
+  if(diagnosticWrap)diagnosticWrap.style.display=scanMode==='esl'?'block':'none';
   if(!guide)return;
   if(scanMode==='esl'){
     const area=getScanArea();
@@ -498,6 +521,13 @@ function updateCameraGuide(){
   }else{
     guide.style.display='none';
   }
+}
+
+function setESLDiagnosticFormat(format){
+  eslDiagnosticFormat=ESL_DIAGNOSTIC_CONFIG[format]?format:'itf';
+  const config=getScanConfig();
+  const lastEl=document.getElementById('scan-last-result');
+  if(lastEl && scanMode==='esl')lastEl.textContent=`ESL診断フォーマット: ${config.diagnosticLabel||config.label}`;
 }
 
 function getActiveVideoElement(){
@@ -580,8 +610,11 @@ function startCodeScan(mode){
   scanStableCount=0;
   const hint=document.getElementById('camera-hint');
   if(hint)hint.textContent=`${getScanConfig().label}をカメラに向けてください`;
+  const select=document.getElementById('esl-format-select');
+  if(select && scanMode==='esl')select.value=eslDiagnosticFormat;
   updateCameraGuide();
   showScanDebug();
+  if(scanMode==='esl')setESLDiagnosticFormat(eslDiagnosticFormat);
   toggleCamera();
 }
 
