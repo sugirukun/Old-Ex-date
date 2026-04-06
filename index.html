@@ -622,6 +622,12 @@ function applyScannedCode(rawCode,format=''){
   const config=getScanConfig();
   const code=config.normalize(rawCode);
   const requiredStableReads=config.requiredStableReads||1;
+  if(scanMode==='esl'){
+    const accepted=!!code;
+    showScanDebug(rawCode,format,accepted,code);
+    document.getElementById('jan-input').value=code;
+    return accepted;
+  }
   const valid=config.isValid(code);
   if(valid){
     if(scanStableCode===code)scanStableCount+=1;
@@ -659,7 +665,6 @@ async function startBarcodeDetector(){
       document.getElementById('camera-video').appendChild(video);
     }
     video.srcObject=stream;cameraActive=true;barcodeDetectorActive=true;
-    if(scanMode==='esl')return;
     let cropCanvas=null,cropCtx=null;
     const scan=async()=>{
       if(!barcodeDetectorActive)return;
