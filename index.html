@@ -657,10 +657,9 @@ async function dialogAction(btn){
   if(mode==='overwrite'){
     if(btn===2)return;
     showLoading(true);
-    const{error}=await sb.from('expiry_records').update({expired_qty:qty,discount_location:discount,staff:currentStaff,registered_at:todayStr(),checked:false}).eq('id',overwriteId);
+    const{error}=await sb.from('expiry_records').update({expired_qty:qty,discount_location:discount,staff:currentStaff,registered_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).eq('id',overwriteId);
     showLoading(false);
     if(error){toast('更新に失敗しました：'+error.message);return;}
-    if(qty>=10)await setHighExpiryFlag(jan);
     toast('上書き登録しました：'+currentMaster.name+' / '+aisle);
     clearForm();loadList();return;
   }
@@ -674,7 +673,7 @@ async function dialogAction(btn){
       }
     }
     showLoading(true);
-    const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,staff:currentStaff,registered_at:todayStr(),checked:false});
+    const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,staff:currentStaff,registered_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
     showLoading(false);
     if(error){toast('登録に失敗しました：'+error.message);return;}
     toast('登録しました：'+currentMaster.name+' / '+aisle);
@@ -684,10 +683,9 @@ async function dialogAction(btn){
 
 async function doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount){
   showLoading(true);
-  const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,staff:currentStaff,registered_at:todayStr(),checked:false});
+  const{data:inserted,error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,staff:currentStaff,registered_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).select().single();
   showLoading(false);
   if(error){toast('登録に失敗しました：'+error.message);return;}
-  if(qty>=10)await setHighExpiryFlag(jan);
   toast('登録しました：'+currentMaster.name+' / '+aisle);
   clearForm();loadList();
 }
@@ -708,17 +706,13 @@ async function loadList(){
   showLoading(true);
   const archiveMode=document.getElementById('filter-archive')?.value||'current';
   let current=[],archives=[];
-  const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, high_expiry_flag)').order('expiry',{ascending:true});
+  const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department)').order('expiry',{ascending:true});
   if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
-  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',high_expiry_flag:r.products?.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
+  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
   if(archiveMode==='archive'){
     const {data:d2}=await sb.from('expiry_archives').select('*').order('checked_at',{ascending:false});
     if(d2){archives=d2.map(r=>({...r,days:daysLeft(r.expiry),checked:true,is_archive:true,high_expiry_flag:r.high_expiry_flag||false}));}
   }
-  // 現役のフラグもアーカイブに補完
-  const flagMap={};
-  current.forEach(r=>{if(r.high_expiry_flag)flagMap[r.jan]=true;});
-  archives.forEach(r=>{if(!r.high_expiry_flag&&flagMap[r.jan])r.high_expiry_flag=true;});
   listData=[...current,...archives];
   showLoading(false);
   populateFilterSelects();renderList();
@@ -796,8 +790,8 @@ function applyColVisibility(){
   });
 }
 
-async function setHighExpiryFlag(jan){
-  await sb.from('products').update({high_expiry_flag:true}).eq('jan',jan);
+async function setHighExpiryFlag(id){
+  await sb.from('expiry_records').update({high_expiry_flag:true}).eq('id',id);
 }
 
 async function adjustExpiredQty(id,delta,isArchive){
@@ -812,7 +806,7 @@ async function adjustExpiredQty(id,delta,isArchive){
   item.expired_qty=nextQty;
   // 10個以上になったらフラグを立てる
   if(nextQty>=10&&!item.high_expiry_flag){
-    await setHighExpiryFlag(item.jan);
+    await setHighExpiryFlag(item.id);
     item.high_expiry_flag=true;
   }
   renderList();
