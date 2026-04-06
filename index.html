@@ -401,6 +401,8 @@ let sortKey='expiry',sortDir=1;
 let currentMaster=null;
 let cameraActive=false;
 let scanMode='jan';
+let scanStableCode='';
+let scanStableCount=0;
 
 const SCAN_CONFIG={
   jan:{
@@ -414,8 +416,8 @@ const SCAN_CONFIG={
   },
   esl:{
     label:'ESLコード',
-    detectorFormats:['code_128'],
-    quaggaReaders:['code_128_reader'],
+    detectorFormats:['itf'],
+    quaggaReaders:['i2of5_reader'],
     normalize:code=>String(code||'').trim().replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,''),
     isValid:code=>/^\d{18}$/.test(code),
     lookupField:'own_code',
@@ -485,6 +487,8 @@ function showScanDebug(rawCode='',format='',accepted=null,normalized=''){
 function startCodeScan(mode){
   if(cameraActive)stopCamera();
   scanMode=SCAN_CONFIG[mode]?mode:'jan';
+  scanStableCode='';
+  scanStableCount=0;
   const hint=document.getElementById('camera-hint');
   if(hint)hint.textContent=`${getScanConfig().label}をカメラに向けてください`;
   showScanDebug();
@@ -494,8 +498,16 @@ function startCodeScan(mode){
 function applyScannedCode(rawCode,format=''){
   const config=getScanConfig();
   const code=config.normalize(rawCode);
-  const accepted=config.isValid(code);
-  showScanDebug(rawCode,format,accepted,code);
+  const valid=config.isValid(code);
+  if(valid){
+    if(scanStableCode===code)scanStableCount+=1;
+    else{scanStableCode=code;scanStableCount=1;}
+  }else{
+    scanStableCode='';
+    scanStableCount=0;
+  }
+  const accepted=valid && (scanMode!=='esl' || scanStableCount>=2);
+  showScanDebug(rawCode,format,accepted,`${code}${valid&&scanMode==='esl'?` (${scanStableCount}/2)`:''}`);
   if(!accepted)return false;
   document.getElementById('jan-input').value=code;
   stopCamera();
@@ -561,6 +573,8 @@ function stopCamera(){
     const v=document.getElementById('bd-video');if(v)v.remove();
   }else if(cameraActive){Quagga.stop();}
   cameraActive=false;document.getElementById('camera-wrap').style.display='none';
+  scanStableCode='';
+  scanStableCount=0;
   const el=document.getElementById('scan-debug');if(el)el.textContent='';
 }
 
