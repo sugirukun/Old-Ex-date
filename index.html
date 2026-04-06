@@ -966,6 +966,66 @@ async function toggleCheck(id,current){
   }
   loadList();
 }
-</script>
+function printList(){
+  const existing=document.getElementById('print-area');if(existing)existing.remove();
+  const ad=alertDays;
+  const fs=document.getElementById('filter-status').value;
+  const fa=document.getElementById('filter-aisle').value;
+  const fc=document.getElementById('filter-cat').value;
+  const fd=document.getElementById('filter-dept').value;
+  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
+  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+  const isAllDeptMode=document.getElementById('dept-filter-wrap').style.display!=='none';
+  if(!isAllDeptMode)rows=rows.filter(r=>r.department===currentDept);
+  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+  if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
+  rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
+
+  const printableHeaders=[...document.querySelectorAll('#panel-list thead th[data-col]')]
+    .map(th=>{
+      const colAttr=th.getAttribute('data-col');
+      if(colAttr==='del')return null;
+      const col=Number(colAttr);
+      if(Number.isNaN(col) || hiddenCols.has(col))return null;
+      return {col,label:th.textContent.trim().replace(/\s+\S+$/,'')};
+    })
+    .filter(Boolean);
+
+  const div=document.createElement('div');div.id='print-area';div.style.cssText='display:none;';
+  let html=`<div style="font-size:12px;margin-bottom:6px;">${todayStr()} / ${currentStaff} / ${currentDept}</div>`;
+  html+=`<table><thead><tr>`;
+  printableHeaders.forEach(({label})=>{html+=`<th>${label}</th>`;});
+  html+=`</tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const days=daysLeft(r.expiry);
+    const s=statusOf(days,ad);
+    const bg=s==='expired'?'background:#fde8e8;':s==='warn'?'background:#fef3e2;':'';
+    html+=`<tr style="${bg}">`;
+    printableHeaders.forEach(({col})=>{
+      switch(col){
+        case 0:html+=`<td style="text-align:center">${r.checked?'OK':''}</td>`;break;
+        case 1:html+=`<td>${r.department||'-'}</td>`;break;
+        case 2:html+=`<td>${r.aisle||'-'}</td>`;break;
+        case 3:html+=`<td style="font-family:monospace">${r.jan||'-'}</td>`;break;
+        case 4:html+=`<td style="font-family:monospace">${r.own_code||'-'}</td>`;break;
+        case 5:html+=`<td>${r.name||'-'}</td>`;break;
+        case 6:html+=`<td>${r.category||'-'}</td>`;break;
+        case 7:html+=`<td>${r.expiry||'-'}</td>`;break;
+        case 8:html+=`<td style="text-align:center">${r.expired_qty>0?r.expired_qty:'-'}</td>`;break;
+        case 9:html+=`<td>${r.sell_by||'-'}</td>`;break;
+        case 10:html+=`<td style="text-align:center">${Number.isFinite(days)?days:'-'}</td>`;break;
+        case 11:html+=`<td>${r.discount_location||'-'}</td>`;break;
+        case 12:html+=`<td>${r.staff||'-'}</td>`;break;
+        case 13:html+=`<td>${r.registered_at||'-'}</td>`;break;
+        default:html+=`<td>-</td>`;break;
+      }
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table>`;
+  div.innerHTML=html;document.body.appendChild(div);div.style.display='block';
+  window.print();setTimeout(()=>div.remove(),1000);
+}</script>
 </body>
 </html>
