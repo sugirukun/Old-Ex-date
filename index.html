@@ -185,7 +185,9 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       </div>
       <div id="scan-last-result" style="margin-top:6px;font-size:12px;color:#555;word-break:break-all;"></div>
       <div id="camera-wrap">
-        <div id="camera-video" style="width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:240px;position:relative;"></div>
+        <div id="camera-video" style="width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:240px;position:relative;">
+          <div id="camera-guide" style="display:none;position:absolute;top:12%;left:42%;width:16%;height:76%;border:2px solid #185FA5;border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,0.28);pointer-events:none;z-index:2;"></div>
+        </div>
         <p class="cam-hint" id="camera-hint">バーコードをカメラに向けてください</p>
         <div id="scan-debug" style="margin-top:6px;font-size:12px;color:#555;word-break:break-all;"></div>
         <button id="stop-camera" onclick="stopCamera()">カメラを停止</button>
@@ -472,6 +474,28 @@ function getScanConfig(){
   return SCAN_CONFIG[scanMode]||SCAN_CONFIG.jan;
 }
 
+function getScanArea(){
+  if(scanMode==='esl'){
+    return {top:0.12,left:0.42,width:0.16,height:0.76};
+  }
+  return {top:0,left:0,width:1,height:1};
+}
+
+function updateCameraGuide(){
+  const guide=document.getElementById('camera-guide');
+  if(!guide)return;
+  if(scanMode==='esl'){
+    const area=getScanArea();
+    guide.style.display='block';
+    guide.style.top=`${area.top*100}%`;
+    guide.style.left=`${area.left*100}%`;
+    guide.style.width=`${area.width*100}%`;
+    guide.style.height=`${area.height*100}%`;
+  }else{
+    guide.style.display='none';
+  }
+}
+
 function showScanDebug(rawCode='',format='',accepted=null,normalized=''){
   const el=document.getElementById('scan-debug');
   const lastEl=document.getElementById('scan-last-result');
@@ -494,6 +518,7 @@ function startCodeScan(mode){
   scanStableCount=0;
   const hint=document.getElementById('camera-hint');
   if(hint)hint.textContent=`${getScanConfig().label}をカメラに向けてください`;
+  updateCameraGuide();
   showScanDebug();
   toggleCamera();
 }
@@ -522,6 +547,7 @@ function applyScannedCode(rawCode,format=''){
 async function toggleCamera(){
   if(cameraActive){stopCamera();return;}
   document.getElementById('camera-wrap').style.display='block';
+  updateCameraGuide();
   if('BarcodeDetector' in window){await startBarcodeDetector();}else{await startQuagga();}
 }
 
@@ -537,10 +563,27 @@ async function startBarcodeDetector(){
       document.getElementById('camera-video').appendChild(video);
     }
     video.srcObject=stream;cameraActive=true;barcodeDetectorActive=true;
+    let cropCanvas=null,cropCtx=null;
     const scan=async()=>{
       if(!barcodeDetectorActive)return;
       try{
-        const results=await detector.detect(video);
+        let target=video;
+        if(scanMode==='esl' && video.videoWidth && video.videoHeight){
+          const area=getScanArea();
+          const sx=Math.floor(video.videoWidth*area.left);
+          const sy=Math.floor(video.videoHeight*area.top);
+          const sw=Math.floor(video.videoWidth*area.width);
+          const sh=Math.floor(video.videoHeight*area.height);
+          if(!cropCanvas){
+            cropCanvas=document.createElement('canvas');
+            cropCtx=cropCanvas.getContext('2d',{willReadFrequently:true});
+          }
+          cropCanvas.width=sw;
+          cropCanvas.height=sh;
+          cropCtx.drawImage(video,sx,sy,sw,sh,0,0,sw,sh);
+          target=cropCanvas;
+        }
+        const results=await detector.detect(target);
         if(results.length>0){
           const matched=results.find(result=>applyScannedCode(result.rawValue,result.format||''));
           if(matched)return;
@@ -558,6 +601,7 @@ async function startQuagga(){
   Quagga.offDetected();
   Quagga.init({
     inputStream:{type:'LiveStream',target:document.getElementById('camera-video'),constraints:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}},
+    area:scanMode==='esl'?{top:'12%',right:'42%',left:'42%',bottom:'12%'}:undefined,
     decoder:{readers:getScanConfig().quaggaReaders},locate:true,
   },function(err){
     if(err){toast('カメラを起動できませんでした');document.getElementById('camera-wrap').style.display='none';return;}
@@ -579,6 +623,7 @@ function stopCamera(){
   cameraActive=false;document.getElementById('camera-wrap').style.display='none';
   scanStableCode='';
   scanStableCount=0;
+  updateCameraGuide();
   const el=document.getElementById('scan-debug');if(el)el.textContent='';
 }
 
