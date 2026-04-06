@@ -72,6 +72,7 @@ td{padding:8px 9px;vertical-align:middle;white-space:nowrap;}
 .badge-green{background:#e8f8ee;color:#1e8449;}
 .badge-gray{background:#f0f0f0;color:#666;}
 .badge-purple{background:#f0eeff;color:#5b4bc4;}
+.badge-stale{background:#fff0f0;color:#c0392b;border:1px solid #f5c6cb;}
 input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;}
 .muted{color:#bbb;font-size:12px;}
 .own-label{font-size:10px;color:#aaa;display:block;}
@@ -232,13 +233,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <input type="number" id="reg-expiredQty" placeholder="0" inputmode="numeric" min="0" />
         </div>
         <div class="field">
-          <label>ESL番号コード（任意）</label>
-          <div class="jan-row">
-            <input type="text" id="reg-esl-code" placeholder="18桁コード or 空欄可" inputmode="numeric" />
-            <button onclick="scanESL()">📷 スキャン</button>
-          </div>
-        </div>
-        <div class="field">
           <label>売り切り方法</label>
           <select id="reg-selloff-method">
             <option value="">選択してください</option>
@@ -300,6 +294,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         <option value="warn" selected>警告圏内</option>
         <option value="ok">余裕あり</option>
         <option value="high_loss">⚠️10個以上ロス実績</option>
+        <option value="stale">🔴7日以上滞留</option>
       </select>
       <label>履歴：</label>
       <select id="filter-archive" onchange="loadList()">
@@ -638,7 +633,6 @@ function updateDays(v){
 document.addEventListener('DOMContentLoaded',()=>{
   setColMode('default');
   setRegisterDiscountValue('');
-  document.getElementById('reg-esl-code').value='';
   document.getElementById('reg-selloff-method').value='';
   document.getElementById('reg-buttoshi').value='';
   const ei=document.getElementById('reg-expiry');
@@ -725,7 +719,7 @@ async function dialogAction(btn){
   if(mode==='overwrite'){
     if(btn===2)return;
     showLoading(true);
-    const{error}=await sb.from('expiry_records').update({expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).eq('id',overwriteId);
+    const{error}=await sb.from('expiry_records').update({expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).eq('id',overwriteId);
     showLoading(false);
     if(error){toast('更新に失敗しました：'+error.message);return;}
     toast('上書き登録しました：'+currentMaster.name+' / '+aisle);
@@ -741,7 +735,7 @@ async function dialogAction(btn){
       }
     }
     showLoading(true);
-    const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
+    const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
     showLoading(false);
     if(error){toast('登録に失敗しました：'+error.message);return;}
     toast('登録しました：'+currentMaster.name+' / '+aisle);
@@ -751,7 +745,7 @@ async function dialogAction(btn){
 
 async function doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount,selloffMethod,buttoshi,eslCode){
   showLoading(true);
-  const{data:inserted,error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).select().single();
+  const{data:inserted,error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).select().single();
   showLoading(false);
   if(error){toast('登録に失敗しました：'+error.message);return;}
   toast('登録しました：'+currentMaster.name+' / '+aisle);
@@ -767,7 +761,6 @@ function clearForm(){
   document.getElementById('reg-expiredQty').value='';
   document.getElementById('reg-days').value='';
   setRegisterDiscountValue('');
-  document.getElementById('reg-esl-code').value='';
   document.getElementById('reg-selloff-method').value='';
   document.getElementById('reg-buttoshi').value='';
 }
@@ -871,7 +864,7 @@ async function adjustExpiredQty(id,delta,isArchive){
   const nextQty=Math.max(0,(parseInt(item.expired_qty,10)||0)+delta);
   if(nextQty===item.expired_qty)return;
   showLoading(true);
-  const {error}=await sb.from('expiry_records').update({expired_qty:nextQty}).eq('id',id);
+  const {error}=await sb.from('expiry_records').update({expired_qty:nextQty,qty_updated_at:todayStr()}).eq('id',id);
   showLoading(false);
   if(error){toast('個数更新に失敗しました：'+error.message);return;}
   item.expired_qty=nextQty;
@@ -907,6 +900,14 @@ function saveListDiscountCustom(id){
   updateDiscountLocation(id,input.value,false);
 }
 
+function isStale(r){
+  if(r.checked||r.is_archive)return false;
+  if(!r.expired_qty||r.expired_qty<=0)return false;
+  const updated=r.qty_updated_at?new Date(r.qty_updated_at):new Date(r.registered_at);
+  updated.setHours(0,0,0,0);
+  return Math.round((today-updated)/86400000)>=7;
+}
+
 function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderList();}
 
 function renderList(){
@@ -921,6 +922,7 @@ function renderList(){
   if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
   else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
+  else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
@@ -965,7 +967,7 @@ function renderList(){
       <td data-col="2"><span class="badge badge-gray">${r.aisle}</span></td>
       <td data-col="3"><span class="jan-code">${r.jan}</span></td>
       <td data-col="4"><span class="own-label">自社</span><span class="own-code">${r.own_code}</span></td>
-      <td data-col="5" style="font-weight:600">${r.name}${r.high_expiry_flag?'<span class="badge" style="background:#fff3cd;color:#856404;margin-left:6px;font-size:10px;">⚠️10個以上ロス実績</span>':''}</td>
+      <td data-col="5" style="font-weight:600">${r.name}${r.high_expiry_flag?'<span class="badge" style="background:#fff3cd;color:#856404;margin-left:6px;font-size:10px;">⚠️10個以上ロス実績</span>':''}${isStale(r)?'<span class="badge badge-stale" style="margin-left:6px;font-size:10px;">🔴7日以上滞留</span>':''}</td>
       <td data-col="6"><span class="badge badge-gray">${r.category}</span></td>
       <td data-col="7">${r.expiry}</td>
       <td data-col="8" style="text-align:center">${qtyCell}</td>
@@ -997,6 +999,7 @@ function printList(){
   if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
   else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
+  else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
   rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
   const colDefs={0:'済',2:'通路',4:'自社コード',5:'商品名',7:'最古賞味期限',8:'期限切れ個数',10:'残日数',11:'値下処理商品の場所'};
