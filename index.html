@@ -411,6 +411,7 @@ const SCAN_CONFIG={
     quaggaReaders:['ean_reader','ean_8_reader','upc_reader','upc_e_reader'],
     normalize:code=>String(code||'').replace(/\D/g,''),
     isValid:code=>/^\d{8}$|^\d{12,13}$/.test(code),
+    requiredStableReads:1,
     lookupField:'jan',
     invalidMessage:'JANコードのみ読み取ります'
   },
@@ -420,6 +421,7 @@ const SCAN_CONFIG={
     quaggaReaders:['i2of5_reader'],
     normalize:code=>String(code||'').trim().replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,''),
     isValid:code=>/^\d{18}$/.test(code),
+    requiredStableReads:1,
     lookupField:'own_code',
     invalidMessage:'ESLコード以外は無視します'
   },
@@ -429,6 +431,7 @@ const SCAN_CONFIG={
     quaggaReaders:['code_39_reader','code_128_reader','i2of5_reader','codabar_reader'],
     normalize:code=>String(code||'').trim().replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,''),
     isValid:code=>/^[0-9A-Za-z\-]{4,20}$/.test(code),
+    requiredStableReads:1,
     lookupField:'own_code',
     invalidMessage:'自社コード以外は無視します'
   }
@@ -498,6 +501,7 @@ function startCodeScan(mode){
 function applyScannedCode(rawCode,format=''){
   const config=getScanConfig();
   const code=config.normalize(rawCode);
+  const requiredStableReads=config.requiredStableReads||1;
   const valid=config.isValid(code);
   if(valid){
     if(scanStableCode===code)scanStableCount+=1;
@@ -506,8 +510,8 @@ function applyScannedCode(rawCode,format=''){
     scanStableCode='';
     scanStableCount=0;
   }
-  const accepted=valid && (scanMode!=='esl' || scanStableCount>=2);
-  showScanDebug(rawCode,format,accepted,`${code}${valid&&scanMode==='esl'?` (${scanStableCount}/2)`:''}`);
+  const accepted=valid && scanStableCount>=requiredStableReads;
+  showScanDebug(rawCode,format,accepted,`${code}${valid&&requiredStableReads>1?` (${scanStableCount}/${requiredStableReads})`:''}`);
   if(!accepted)return false;
   document.getElementById('jan-input').value=code;
   stopCamera();
