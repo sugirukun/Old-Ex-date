@@ -177,13 +177,15 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <h3>JANコードを読み込む</h3>
       <div class="jan-row">
         <input type="text" id="jan-input" placeholder="スキャン or 入力" inputmode="numeric" />
-        <button onclick="toggleCamera()">📷 バーコード</button>
+        <button onclick="startCodeScan('jan')">📷 JAN読み取り</button>
+        <button onclick="startCodeScan('esl')">📷 ESLコード</button>
+        <button onclick="startCodeScan('own')">📷 自社コード</button>
         <button onclick="toggleOCR()">🔤 棚札OCR</button>
         <button onclick="lookupJAN()">検索</button>
       </div>
       <div id="camera-wrap">
         <div id="camera-video" style="width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:240px;position:relative;"></div>
-        <p class="cam-hint">バーコードをカメラに向けてください</p>
+        <p class="cam-hint" id="camera-hint">バーコードをカメラに向けてください</p>
         <button id="stop-camera" onclick="stopCamera()">カメラを停止</button>
       </div>
       <div id="ocr-wrap" style="display:none;margin-top:10px;">
@@ -396,6 +398,37 @@ let listData=[];
 let sortKey='expiry',sortDir=1;
 let currentMaster=null;
 let cameraActive=false;
+let scanMode='jan';
+
+const SCAN_CONFIG={
+  jan:{
+    label:'JAN',
+    detectorFormats:['ean_13','ean_8','upc_a','upc_e'],
+    quaggaReaders:['ean_reader','ean_8_reader','upc_reader','upc_e_reader'],
+    normalize:code=>String(code||'').replace(/\D/g,''),
+    isValid:code=>/^\d{8}$|^\d{12,13}$/.test(code),
+    lookupField:'jan',
+    invalidMessage:'JANコードのみ読み取ります'
+  },
+  esl:{
+    label:'ESLコード',
+    detectorFormats:['code_128'],
+    quaggaReaders:['code_128_reader'],
+    normalize:code=>String(code||'').trim().replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,''),
+    isValid:code=>/^\d{18}$/.test(code),
+    lookupField:'own_code',
+    invalidMessage:'ESLコード以外は無視します'
+  },
+  own:{
+    label:'自社コード',
+    detectorFormats:['code_39','code_128','itf','codabar'],
+    quaggaReaders:['code_39_reader','code_128_reader','i2of5_reader','codabar_reader'],
+    normalize:code=>String(code||'').trim().replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,''),
+    isValid:code=>/^[0-9A-Za-z\-]{4,20}$/.test(code),
+    lookupField:'own_code',
+    invalidMessage:'自社コード以外は無視します'
+  }
+};
 
 function showLoading(v){document.getElementById('loading').style.display=v?'flex':'none';}
 function toast(msg,duration=2500){
@@ -428,6 +461,28 @@ function buildAisleSelect(){
 // ===== CAMERA =====
 let barcodeDetectorActive=false,barcodeDetectorTimer=null,barcodeStream=null;
 
+function getScanConfig(){
+  return SCAN_CONFIG[scanMode]||SCAN_CONFIG.jan;
+}
+
+function startCodeScan(mode){
+  if(cameraActive)stopCamera();
+  scanMode=SCAN_CONFIG[mode]?mode:'jan';
+  const hint=document.getElementById('camera-hint');
+  if(hint)hint.textContent=`${getScanConfig().label}をカメラに向けてください`;
+  toggleCamera();
+}
+
+function applyScannedCode(rawCode){
+  const config=getScanConfig();
+  const code=config.normalize(rawCode);
+  if(!config.isValid(code))return false;
+  document.getElementById('jan-input').value=code;
+  stopCamera();
+  lookupJAN(code,scanMode);
+  return true;
+}
+
 async function toggleCamera(){
   if(cameraActive){stopCamera();return;}
   document.getElementById('camera-wrap').style.display='block';
@@ -436,7 +491,7 @@ async function toggleCamera(){
 
 async function startBarcodeDetector(){
   try{
-    const detector=new BarcodeDetector({formats:['ean_13','ean_8','code_39','code_128','itf','codabar','upc_a','upc_e']});
+    const detector=new BarcodeDetector({formats:getScanConfig().detectorFormats});
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
     barcodeStream=stream;
     let video=document.getElementById('bd-video');
@@ -451,9 +506,8 @@ async function startBarcodeDetector(){
       try{
         const results=await detector.detect(video);
         if(results.length>0){
-          let code=results[0].rawValue;
-          code=code.replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,'');
-          document.getElementById('jan-input').value=code;stopCamera();lookupJAN();return;
+          const matched=results.find(result=>applyScannedCode(result.rawValue));
+          if(matched)return;
         }
       }catch(e){}
       barcodeDetectorTimer=setTimeout(scan,200);
@@ -465,16 +519,17 @@ async function startBarcodeDetector(){
 async function startQuagga(){
   try{await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}
   catch(e){toast('カメラの許可が必要です');document.getElementById('camera-wrap').style.display='none';return;}
+  Quagga.offDetected();
   Quagga.init({
     inputStream:{type:'LiveStream',target:document.getElementById('camera-video'),constraints:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}},
-    decoder:{readers:['ean_reader','ean_8_reader','code_39_reader','i2of5_reader','code_128_reader','codabar_reader']},locate:true,
+    decoder:{readers:getScanConfig().quaggaReaders},locate:true,
   },function(err){
     if(err){toast('カメラを起動できませんでした');document.getElementById('camera-wrap').style.display='none';return;}
     Quagga.start();cameraActive=true;
   });
   Quagga.onDetected(function(result){
     let code=result.codeResult.code;
-    if(code){code=code.replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,'');document.getElementById('jan-input').value=code;stopCamera();lookupJAN();}
+    if(code)applyScannedCode(code);
   });
 }
 
@@ -898,6 +953,41 @@ function renderList(){
 }
 
 // ===== PRINT =====
+async function lookupJAN(inputCode=null,mode='jan'){
+  let code=(inputCode??document.getElementById('jan-input').value).trim();
+  if(!code){toast('JANコードを入力してください');return;}
+  const config=SCAN_CONFIG[mode]||SCAN_CONFIG.jan;
+  showLoading(true);
+  let {data,error}=await sb.from('products').select('*').eq(config.lookupField,code).single();
+  if((error||!data) && mode==='jan'){
+    const res=await sb.from('products').select('*').eq('own_code',code).single();
+    data=res.data;error=res.error;
+  }
+  showLoading(false);
+  if(error||!data){
+    toast(mode==='jan'?'商品マスターに登録がありません':'対象コードの登録がありません');
+    return;
+  }
+  currentMaster=data;
+  document.getElementById('m-name').textContent=data.name;
+  document.getElementById('m-cat').textContent=data.category;
+  document.getElementById('m-own').textContent=data.own_code;
+  document.getElementById('m-jan').textContent=data.jan;
+  document.getElementById('master-result').style.display='block';
+  const aisle=document.getElementById('reg-aisle').value;
+  if(aisle){
+    const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',data.jan).eq('aisle',aisle).single();
+    if(rec){
+      const exStr=rec.expiry.replace(/-/g,'');
+      document.getElementById('reg-expiry').value=exStr;
+      document.getElementById('reg-expiredQty').value=rec.expired_qty??'';
+      setRegisterDiscountValue(rec.discount_location||'');
+      updateDays(exStr);
+    }
+  }
+  toast('商品情報を読み込みました');
+}
+
 function printList(){
   const existing=document.getElementById('print-area');if(existing)existing.remove();
   const ad=alertDays;
