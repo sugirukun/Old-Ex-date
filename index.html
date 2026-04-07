@@ -341,6 +341,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="11" checked onchange="toggleCol(11,this.checked)"><span class="toggle-slider"></span></label><label>値下処理商品の場所</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="12" onchange="toggleCol(12,this.checked)"><span class="toggle-slider"></span></label><label>担当者</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="13" onchange="toggleCol(13,this.checked)"><span class="toggle-slider"></span></label><label>登録日</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="17" onchange="toggleCol(17,this.checked)"><span class="toggle-slider"></span></label><label>販売許容期限</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="14" onchange="toggleCol(14,this.checked)"><span class="toggle-slider"></span></label><label>ESL番号</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="15" onchange="toggleCol(15,this.checked)"><span class="toggle-slider"></span></label><label>売り切り方法</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="16" onchange="toggleCol(16,this.checked)"><span class="toggle-slider"></span></label><label>ぶっとおし</label></div>
@@ -359,6 +360,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
             <th data-col="7" onclick="sortBy('expiry')">最古賞味期限 ↕</th>
             <th data-col="8" onclick="sortBy('expired_qty')">期限切れ個数 ↕</th>
             <th data-col="9" onclick="sortBy('sell_by')">値引き対象日 ↕</th>
+            <th data-col="17" onclick="sortBy('selling_tolerance')">販売許容期限 ↕</th>
             <th data-col="10" onclick="sortBy('days')">残日数 ↕</th>
             <th data-col="11" onclick="sortBy('discount_location')">値下処理商品の場所 ↕</th>
             <th data-col="12" onclick="sortBy('staff')">担当者 ↕</th>
@@ -831,7 +833,7 @@ function badgeFor(days,ad){
 }
 
 // ===== COLUMN TOGGLE =====
-const DEFAULT_HIDDEN=new Set([1,3,6,9,12,13,14,15,16]);
+const DEFAULT_HIDDEN=new Set([1,3,6,9,12,13,14,15,16,17]);
 let hiddenCols=new Set(DEFAULT_HIDDEN);
 let colMode='default';
 
@@ -994,7 +996,8 @@ function renderList(){
       <td data-col="6"><span class="badge badge-gray">${r.category}</span></td>
       <td data-col="7">${r.expiry}</td>
       <td data-col="8" style="text-align:center">${qtyCell}</td>
-      <td data-col="9">${isMarkdownTarget(r.expiry,r.selling_tolerance)?`<span class="badge badge-red">値引き対象</span>`:calcMarkdownTarget(r.expiry,r.selling_tolerance)}</td>
+      <td data-col="9">${(()=>{const d=calcMarkdownTarget(r.expiry,r.selling_tolerance);return isMarkdownTarget(r.expiry,r.selling_tolerance)?`<span class="badge badge-red">${d}</span>`:d;})()}</td>
+      <td data-col="17" style="text-align:center">${r.selling_tolerance!=null?r.selling_tolerance+'日':`<span class="muted">—</span>`}</td>
       <td data-col="10">${badgeFor(r.days,ad)}</td>
       <td data-col="11">${locCell}</td>
       <td data-col="12" style="color:#888">${r.staff}</td>
