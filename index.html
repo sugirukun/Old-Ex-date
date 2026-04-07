@@ -160,6 +160,14 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <option value="29課（酒）">29課（酒）</option>
       <option value="41課（消耗品）">41課（消耗品）</option>
     </select>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:6px;">期限チェック間隔（日）</label>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <input type="range" id="login-interval" min="3" max="30" value="7" oninput="document.getElementById('login-interval-disp').textContent=this.value" style="flex:1;" />
+        <span id="login-interval-disp" style="font-size:18px;font-weight:600;color:#185FA5;min-width:32px;text-align:center;">7</span>
+        <span style="font-size:13px;color:#888;">日</span>
+      </div>
+    </div>
     <button onclick="doLogin()">ログイン</button>
   </div>
 </div>
@@ -169,6 +177,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <h1>賞味期限管理</h1>
     <span class="staff-badge" id="staff-disp"></span>
     <span class="staff-badge" id="dept-disp" style="background:#e8f0fe;color:#185FA5;"></span>
+    <span class="staff-badge" id="interval-disp" style="background:#e8f5e9;color:#1e8449;"></span>
     <button onclick="printList()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;">🖨 印刷</button>
   </div>
 
@@ -327,7 +336,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="6" onchange="toggleCol(6,this.checked)"><span class="toggle-slider"></span></label><label>カテゴリ</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="7" checked onchange="toggleCol(7,this.checked)"><span class="toggle-slider"></span></label><label>最古賞味期限</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="8" checked onchange="toggleCol(8,this.checked)"><span class="toggle-slider"></span></label><label>期限切れ個数</label></div>
-      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="9" onchange="toggleCol(9,this.checked)"><span class="toggle-slider"></span></label><label>販売期限切れ日</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="9" onchange="toggleCol(9,this.checked)"><span class="toggle-slider"></span></label><label>値引き対象日</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="10" checked onchange="toggleCol(10,this.checked)"><span class="toggle-slider"></span></label><label>残日数</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="11" checked onchange="toggleCol(11,this.checked)"><span class="toggle-slider"></span></label><label>値下処理商品の場所</label></div>
       <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="12" onchange="toggleCol(12,this.checked)"><span class="toggle-slider"></span></label><label>担当者</label></div>
@@ -349,7 +358,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
             <th data-col="6">カテゴリ</th>
             <th data-col="7" onclick="sortBy('expiry')">最古賞味期限 ↕</th>
             <th data-col="8" onclick="sortBy('expired_qty')">期限切れ個数 ↕</th>
-            <th data-col="9" onclick="sortBy('sell_by')">販売期限切れ日 ↕</th>
+            <th data-col="9" onclick="sortBy('sell_by')">値引き対象日 ↕</th>
             <th data-col="10" onclick="sortBy('days')">残日数 ↕</th>
             <th data-col="11" onclick="sortBy('discount_location')">値下処理商品の場所 ↕</th>
             <th data-col="12" onclick="sortBy('staff')">担当者 ↕</th>
@@ -374,6 +383,22 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const today = new Date(); today.setHours(0,0,0,0);
 const DISCOUNT_PRESETS = ['売り切りワゴン','定番棚のまま'];
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
+function calcMarkdownTarget(expiry, sellingTolerance){
+  // 値引き対象日 = 今日 + チェック間隔 + 販売許容期限
+  const targetDays = checkInterval + (sellingTolerance || 0);
+  const targetDate = new Date(today);
+  targetDate.setDate(targetDate.getDate() + targetDays);
+  return fmt(targetDate);
+}
+function isMarkdownTarget(expiry, sellingTolerance){
+  // 賞味期限が値引き対象日以前なら値引き対象
+  const expiryDate = new Date(expiry);
+  expiryDate.setHours(0,0,0,0);
+  const targetDays = checkInterval + (sellingTolerance || 0);
+  const targetDate = new Date(today);
+  targetDate.setDate(targetDate.getDate() + targetDays);
+  return expiryDate <= targetDate;
+}
 function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
 function statusOf(days,ad){if(days<0)return'expired';if(days<=ad)return'warn';return'ok';}
 function todayStr(){const jst=new Date(today.getTime()+9*60*60*1000);return jst.toISOString().slice(0,10);}
@@ -416,7 +441,7 @@ function escapeAttr(value=''){
 const AISLES=[];
 for(let i=1;i<=16;i++)['A','B','C','D'].forEach(l=>AISLES.push(`${i}${l}`));
 
-let currentStaff='',currentDept='';
+let currentStaff='',currentDept='',checkInterval=7;
 let listData=[];
 let sortKey='expiry',sortDir=1;
 let currentMaster=null;
@@ -434,11 +459,12 @@ function doLogin(){
   const d=document.getElementById('login-dept').value;
   if(!n){toast('担当者名を入力してください');return;}
   if(!d){toast('部門を選択してください');return;}
-  currentStaff=n;currentDept=d;
+  currentStaff=n;currentDept=d;checkInterval=parseInt(document.getElementById('login-interval').value)||7;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-screen').style.display='block';
   document.getElementById('staff-disp').textContent='担当：'+n;
   document.getElementById('dept-disp').textContent=d;
+  document.getElementById('interval-disp').textContent='チェック間隔:'+checkInterval+'日';
   document.getElementById('reg-staff').value=n;
   document.getElementById('reg-date').value=todayStr();
   buildAisleSelect();loadList();
@@ -662,16 +688,13 @@ async function registerItem(){
   if(!buttoshi){toast('ぶっとおしを選択してください');return;}
   const ep=expiryRaw;
   const expiryFmt=`${ep.slice(0,4)}-${ep.slice(4,6)}-${ep.slice(6,8)}`;
-  const sellByDt=new Date(parseInt(ep.slice(0,4)),parseInt(ep.slice(4,6))-1,parseInt(ep.slice(6,8)));
-  sellByDt.setDate(sellByDt.getDate()+(currentMaster.sell_by_offset||0));
-  const sellByFmt=fmt(sellByDt);
 
   const existing=listData.filter(r=>r.jan===currentMaster.jan&&!r.is_archive);
   if(existing.length>0){
     // 同じ通路・同じ期限のチェック
     const sameAisleExpiry=existing.find(r=>r.aisle===aisle&&r.expiry===expiryFmt);
     if(sameAisleExpiry){
-      pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount,selloffMethod,buttoshi,eslCode,mode:'overwrite',overwriteId:sameAisleExpiry.id};
+      pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode,mode:'overwrite',overwriteId:sameAisleExpiry.id};
       document.getElementById('dialog-title').textContent='同じ登録があります';
       document.getElementById('dialog-msg').textContent='同じ通路で同じ賞味期限の登録があります。上書きになりますが続行しますか？';
       document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
@@ -683,7 +706,7 @@ async function registerItem(){
       return;
     }
     // 同じ商品が別の通路/期限で登録済み
-    pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount,selloffMethod,buttoshi,eslCode,mode:'new'};
+    pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode,mode:'new'};
     document.getElementById('dialog-title').textContent='同じ商品がすでに登録済みです';
     document.getElementById('dialog-msg').textContent=`「${currentMaster.name}」はすでに登録されています。どうしますか？`;
     document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
@@ -694,7 +717,7 @@ async function registerItem(){
     document.getElementById('dialog-overlay').classList.add('show');
     return;
   }
-  await doRegister(currentMaster.jan,aisle,expiryFmt,qty,sellByFmt,discount,selloffMethod,buttoshi,eslCode);
+  await doRegister(currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode);
 }
 
 function closeDialog(){
@@ -704,7 +727,7 @@ function closeDialog(){
 }
 
 async function archiveRecord(record){
-  const payload={jan:record.jan,aisle:record.aisle,expiry:record.expiry,expired_qty:record.expired_qty||0,sell_by:record.sell_by,discount_location:record.discount_location,staff:record.staff,registered_at:record.registered_at,checked_at:todayStr(),department:record.department,name:record.name,own_code:record.own_code,category:record.category,high_expiry_flag:record.high_expiry_flag||false};
+  const payload={jan:record.jan,aisle:record.aisle,expiry:record.expiry,expired_qty:record.expired_qty||0,discount_location:record.discount_location,staff:record.staff,registered_at:record.registered_at,checked_at:todayStr(),department:record.department,name:record.name,own_code:record.own_code,category:record.category,high_expiry_flag:record.high_expiry_flag||false};
   const {error:archErr}=await sb.from('expiry_archives').insert(payload);
   if(archErr)return archErr;
   const {error:delErr}=await sb.from('expiry_records').delete().eq('id',record.id);
@@ -713,7 +736,7 @@ async function archiveRecord(record){
 
 async function dialogAction(btn){
   if(!pendingRegister)return;
-  const{jan,aisle,expiryFmt,qty,sellByFmt,discount,selloffMethod,buttoshi,eslCode,mode,overwriteId}=pendingRegister;
+  const{jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode,mode,overwriteId}=pendingRegister;
   closeDialog();
 
   if(mode==='overwrite'){
@@ -735,7 +758,7 @@ async function dialogAction(btn){
       }
     }
     showLoading(true);
-    const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
+    const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
     showLoading(false);
     if(error){toast('登録に失敗しました：'+error.message);return;}
     toast('登録しました：'+currentMaster.name+' / '+aisle);
@@ -743,9 +766,9 @@ async function dialogAction(btn){
   }
 }
 
-async function doRegister(jan,aisle,expiryFmt,qty,sellByFmt,discount,selloffMethod,buttoshi,eslCode){
+async function doRegister(jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode){
   showLoading(true);
-  const{data:inserted,error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,sell_by:sellByFmt,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).select().single();
+  const{data:inserted,error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).select().single();
   showLoading(false);
   if(error){toast('登録に失敗しました：'+error.message);return;}
   toast('登録しました：'+currentMaster.name+' / '+aisle);
@@ -770,9 +793,9 @@ async function loadList(){
   showLoading(true);
   const archiveMode=document.getElementById('filter-archive')?.value||'current';
   let current=[],archives=[];
-  const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department)').order('expiry',{ascending:true});
+  const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, selling_tolerance)').order('expiry',{ascending:true});
   if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
-  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
+  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance||0,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
   if(archiveMode==='archive'){
     const {data:d2}=await sb.from('expiry_archives').select('*').order('checked_at',{ascending:false});
     if(d2){archives=d2.map(r=>({...r,days:daysLeft(r.expiry),checked:true,is_archive:true,high_expiry_flag:r.high_expiry_flag||false}));}
@@ -926,7 +949,7 @@ function renderList(){
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad)===fs);
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
-    if(['expiry','sell_by','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
+    if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
     if(sortKey==='aisle'){const n1=parseInt(av),n2=parseInt(bv);if(n1!==n2)return(n1-n2)*sortDir;av=String(av).slice(-1);bv=String(bv).slice(-1);}
     return av<bv?-sortDir:av>bv?sortDir:0;
   });
@@ -971,7 +994,7 @@ function renderList(){
       <td data-col="6"><span class="badge badge-gray">${r.category}</span></td>
       <td data-col="7">${r.expiry}</td>
       <td data-col="8" style="text-align:center">${qtyCell}</td>
-      <td data-col="9">${r.sell_by||'—'}</td>
+      <td data-col="9">${isMarkdownTarget(r.expiry,r.selling_tolerance)?`<span class="badge badge-red">値引き対象</span>`:calcMarkdownTarget(r.expiry,r.selling_tolerance)}</td>
       <td data-col="10">${badgeFor(r.days,ad)}</td>
       <td data-col="11">${locCell}</td>
       <td data-col="12" style="color:#888">${r.staff}</td>
@@ -1043,13 +1066,13 @@ async function deleteRecord(id,isArchive){
 async function toggleCheck(id,current){
   const item=listData.find(r=>r.id===id);if(!item)return;
   if(!current){
-    const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:0,sell_by:item.sell_by,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
+    const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
     if(archErr){toast('アーカイブに失敗しました：'+archErr.message);return;}
     const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
     if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
     toast('済にしてアーカイブしました');
   }else{
-    const{error:restErr}=await sb.from('expiry_records').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty,sell_by:item.sell_by,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked:false});
+    const{error:restErr}=await sb.from('expiry_records').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked:false});
     if(restErr){toast('復元に失敗しました：'+restErr.message);return;}
     await sb.from('expiry_archives').delete().eq('id',id);
     toast('済を解除して現役に戻しました');
