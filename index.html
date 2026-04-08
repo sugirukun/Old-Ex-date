@@ -698,7 +698,7 @@ async function registerItem(){
   if(!discount){toast('値下げ処理商品の場所を入力してください');return;}
   const selloffMethod=document.getElementById('reg-selloff-method').value;
   const buttoshi=document.getElementById('reg-buttoshi').value;
-  const eslCode=document.getElementById('reg-esl-code').value.trim();
+  const eslCode='';
   if(!selloffMethod){toast('売り切り方法を選択してください');return;}
   if(!buttoshi){toast('ぶっとおしを選択してください');return;}
   const ep=expiryRaw;
