@@ -959,29 +959,37 @@ function renderList(){
   const fa=document.getElementById('filter-aisle').value;
   const fc=document.getElementById('filter-cat').value;
   const fd=document.getElementById('filter-dept').value;
-  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
-  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
-  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-  if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+
+  // scopedRows: 部門・カテゴリ・通路・許容期限フィルターを適用した母集団
+  let scopedRows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+  if(currentDept!=='店長')scopedRows=scopedRows.filter(r=>r.department===currentDept);
+  else if(fd!=='all')scopedRows=scopedRows.filter(r=>r.department===fd);
+  if(fa!=='all')scopedRows=scopedRows.filter(r=>r.aisle===fa);
+  if(fc!=='all')scopedRows=scopedRows.filter(r=>r.category===fc);
+  if(filterLowTolerance)scopedRows=scopedRows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
+
+  // バッジはscopedRowsを基準にする
+  const exp=scopedRows.filter(r=>daysLeft(r.expiry)<0).length;
+  const warn=scopedRows.filter(r=>{const d=daysLeft(r.expiry);return d>=0&&isMarkdownTarget(r.expiry,r.selling_tolerance);}).length;
+  const done=scopedRows.filter(r=>r.checked).length;
+  document.getElementById('s-total').textContent=scopedRows.length;
+  document.getElementById('s-expired').textContent=exp;
+  document.getElementById('s-warn').textContent=warn;
+  document.getElementById('s-done').textContent=done;
+  document.getElementById('s-prog').style.width=scopedRows.length?Math.round(done/scopedRows.length*100)+'%':'0%';
+
+  // ステータスフィルターはscopedRowsにさらに適用
+  let rows=[...scopedRows];
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
   else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
+
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
     if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
     if(sortKey==='aisle'){const n1=parseInt(av),n2=parseInt(bv);if(n1!==n2)return(n1-n2)*sortDir;av=String(av).slice(-1);bv=String(bv).slice(-1);}
     return av<bv?-sortDir:av>bv?sortDir:0;
   });
-  const exp=listData.filter(r=>daysLeft(r.expiry)<0).length;
-  const warn=listData.filter(r=>{const d=daysLeft(r.expiry);return d>=0&&isMarkdownTarget(r.expiry,r.selling_tolerance);}).length;
-  const done=listData.filter(r=>r.checked).length;
-  document.getElementById('s-total').textContent=listData.length;
-  document.getElementById('s-expired').textContent=exp;
-  document.getElementById('s-warn').textContent=warn;
-  document.getElementById('s-done').textContent=done;
-  document.getElementById('s-prog').style.width=listData.length?Math.round(done/listData.length*100)+'%':'0%';
   const tbody=document.getElementById('tbody');
   if(!rows.length){tbody.innerHTML=`<tr><td colspan="15" class="empty-row">該当する商品はありません</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>{
