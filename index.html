@@ -815,7 +815,7 @@ async function loadList(){
   let current=[],archives=[];
   const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, selling_tolerance)').order('expiry',{ascending:true});
   if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
-  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance||0,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
+  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance??null,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
   if(archiveMode==='archive'){
     const {data:d2}=await sb.from('expiry_archives').select('*').order('checked_at',{ascending:false});
     if(d2){archives=d2.map(r=>({...r,days:daysLeft(r.expiry),checked:true,is_archive:true,high_expiry_flag:r.high_expiry_flag||false}));}
@@ -967,7 +967,7 @@ function renderList(){
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
   else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
+  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
     if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
@@ -1047,7 +1047,7 @@ function printList(){
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
   else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
+  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
   rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
   const colDefs={0:'済',2:'通路',4:'自社コード',5:'商品名',7:'最古賞味期限',8:'販売許容期限切れ個数',10:'賞味期限切れまでの日数',11:'値下処理商品の場所'};
   const visibleCols=Object.keys(colDefs).map(Number).filter(c=>!hiddenCols.has(c));
