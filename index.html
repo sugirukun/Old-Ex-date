@@ -964,7 +964,7 @@ function renderList(){
   if(fc!=='all')rows=rows.filter(r=>r.category===fc);
   if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
   else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
+  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance===0||r.selling_tolerance>filterLowToleranceThreshold));
   const scopedRows=rows.slice();
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
   else if(fs==='stale')rows=rows.filter(r=>isStale(r));
@@ -1048,7 +1048,7 @@ function printList(){
   if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
   else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance>filterLowToleranceThreshold));
+  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance===null||r.selling_tolerance===999||r.selling_tolerance===0||r.selling_tolerance>filterLowToleranceThreshold));
   rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
   const colDefs={0:'済',2:'通路',4:'自社コード',5:'商品名',7:'最古賞味期限',8:'販売許容期限切れ個数',10:'賞味期限切れまでの日数',11:'値下処理商品の場所'};
   const visibleCols=Object.keys(colDefs).map(Number).filter(c=>!hiddenCols.has(c));
