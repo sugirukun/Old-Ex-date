@@ -301,9 +301,9 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <div class="filter-bar">
       <label>絞込：</label>
       <select id="filter-status" onchange="renderList()">
-        <option value="all">すべて</option>
+        <option value="all" selected>すべて</option>
         <option value="expired">期限切れ</option>
-        <option value="warn" selected>値引き対象</option>
+        <option value="warn">値引き対象</option>
         <option value="ok">余裕あり</option>
         <option value="high_loss">⚠️10個以上ロス実績</option>
         <option value="stale">🔴7日以上滞留</option>
