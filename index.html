@@ -333,7 +333,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <span id="dept-filter-wrap" style="display:none;align-items:center;gap:8px;"><label>部門：</label><select id="filter-dept" onchange="renderList()"><option value="all">すべて</option></select></span>
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
-      <label>アラート：</label>
+      <label>賞味期限切れまで</label>
       <button onclick="changeAlertDays(-1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">－</button>
       <span id="alert-days-disp" style="font-size:13px;font-weight:500;min-width:24px;text-align:center;display:inline-block;">7</span>
       <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
@@ -1053,6 +1053,9 @@ function renderList(){
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
   /* ▲▲▲ v1.1 修正 ▲▲▲ */
   if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
+  /* ▼▼▼ v1.7 追加: 警告圏内のみ賞味期限切れまでの日数でさらに絞り込む（期限切れ・okは影響なし） ▼▼▼ */
+  rows=rows.filter(r=>{const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);if(s==='warn')return r.days<=ad;return true;});
+  /* ▲▲▲ v1.7 追加 ▲▲▲ */
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
     if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
