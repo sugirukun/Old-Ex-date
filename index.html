@@ -1,4 +1,4 @@
-<!-- v1.9 2026-04-14 列トグルボタン・ラベルをカラーコード別色に変更 -->
+<!-- v2.0 2026-04-14 賞味期限切れまでの日数スライダーをデフォルト365日・最大365日に変更 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -334,8 +334,8 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
       <label>賞味期限切れまで</label>
-      <input type="range" id="alert-days-slider" min="0" max="60" value="7" oninput="syncAlertDays('slider')" style="width:100px;accent-color:#185FA5;cursor:pointer;" />
-      <input type="number" id="alert-days-num" min="0" max="60" value="7" oninput="syncAlertDays('num')" style="width:52px;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;" />
+      <input type="range" id="alert-days-slider" min="0" max="365" value="365" oninput="syncAlertDays('slider')" style="width:100px;accent-color:#185FA5;cursor:pointer;" />
+      <input type="number" id="alert-days-num" min="0" max="365" value="365" oninput="syncAlertDays('num')" style="width:52px;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;" />
       <label>日以内</label>
       <input type="search" id="filter-search" placeholder="🔍 商品名・コード・通路・カテゴリ" oninput="renderList()" style="font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;min-width:200px;" />
     </div>
@@ -399,7 +399,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 
 <script>
 const SUPABASE_URL = 'https://hloolqqmdvqfuaoydkmq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
+const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL;
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const today = new Date(); today.setHours(0,0,0,0);
@@ -880,8 +880,8 @@ function setColMode(mode){
   applyColVisibility();
 }
 
-let alertDays=7;
-function syncAlertDays(src){const s=document.getElementById('alert-days-slider'),n=document.getElementById('alert-days-num');if(src==='slider'){alertDays=Math.max(0,Math.min(60,parseInt(s.value)||0));n.value=alertDays;}else{alertDays=Math.max(0,Math.min(60,parseInt(n.value)||0));s.value=alertDays;}renderList();}
+let alertDays=365;
+function syncAlertDays(src){const s=document.getElementById('alert-days-slider'),n=document.getElementById('alert-days-num');if(src==='slider'){alertDays=Math.max(0,Math.min(365,parseInt(s.value)||0));n.value=alertDays;}else{alertDays=Math.max(0,Math.min(365,parseInt(n.value)||0));s.value=alertDays;}renderList();}
 
 function toggleCol(col,visible){
   colMode='custom';
@@ -1239,7 +1239,7 @@ function doLogout(){
 function execLogout(hadWarn){
   currentStaff='';currentDept='';listData=[];
   sortKey='expiry';sortDir=1;currentMaster=null;
-  alertDays=7;document.getElementById('alert-days-slider').value=7;document.getElementById('alert-days-num').value=7;
+  alertDays=365;document.getElementById('alert-days-slider').value=365;document.getElementById('alert-days-num').value=365;
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-name').value='';
