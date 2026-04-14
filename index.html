@@ -1,4 +1,4 @@
-<!-- v1.6 2026-04-14 ログアウトボタン追加・警告圏内残留チェック付きログアウトダイアログ -->
+<!-- v1.7 2026-04-14 警告圏内の条件をisMarkdownTarget（値引き対象日）のみに変更 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -420,9 +420,9 @@ function isMarkdownTarget(expiry, sellingTolerance){
   return expiryDate <= targetDate;
 }
 function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
-/* ▼▼▼ v1.1 修正: 値引き対象(isMarkdownTarget)も警告圏内に含める ▼▼▼ */
-function statusOf(days,ad,expiry,sellingTolerance){if(days<0)return'expired';if(days<=ad)return'warn';if(expiry&&isMarkdownTarget(expiry,sellingTolerance))return'warn';return'ok';}
-/* ▲▲▲ v1.1 修正 ▲▲▲ */
+/* ▼▼▼ v1.7 修正: 警告圏内はisMarkdownTarget（値引き対象日）のみに変更 ▼▼▼ */
+function statusOf(days,ad,expiry,sellingTolerance){if(days<0)return'expired';if(expiry&&isMarkdownTarget(expiry,sellingTolerance))return'warn';return'ok';}
+/* ▲▲▲ v1.7 修正 ▲▲▲ */
 function todayStr(){const jst=new Date(today.getTime()+9*60*60*1000);return jst.toISOString().slice(0,10);}
 
 function getDiscountState(value=''){
