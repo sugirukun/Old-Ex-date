@@ -338,6 +338,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <span id="alert-days-disp" style="font-size:13px;font-weight:500;min-width:24px;text-align:center;display:inline-block;">7</span>
       <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
       <label>日以内</label>
+      <input type="search" id="filter-search" placeholder="🔍 商品名・コード・通路・カテゴリ" oninput="renderList()" style="font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;min-width:200px;" />
     </div>
     <div style="padding:6px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px;">
       <span style="font-size:12px;color:#888;">列の表示：</span>
@@ -1055,6 +1056,10 @@ function renderList(){
   if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
   /* ▼▼▼ v1.7 追加: 期限切れは常に表示、それ以外はdays<=alertDaysで絞り込む ▼▼▼ */
   rows=rows.filter(r=>r.days<0||r.days<=ad);
+  /* ▲▲▲ v1.7 追加 ▲▲▲ */
+  /* ▼▼▼ v1.7 追加: 商品名・自社コード・JANコード・通路番号・カテゴリ検索 ▼▼▼ */
+  const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();
+  if(sq)rows=rows.filter(r=>[r.name,r.own_code,r.jan,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)));
   /* ▲▲▲ v1.7 追加 ▲▲▲ */
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
