@@ -1053,8 +1053,8 @@ function renderList(){
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
   /* ▲▲▲ v1.1 修正 ▲▲▲ */
   if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
-  /* ▼▼▼ v1.7 追加: 警告圏内のみ賞味期限切れまでの日数でさらに絞り込む（期限切れ・okは影響なし） ▼▼▼ */
-  rows=rows.filter(r=>{const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);if(s==='warn')return r.days<=ad;return true;});
+  /* ▼▼▼ v1.7 追加: 期限切れは常に表示、それ以外はdays<=alertDaysで絞り込む ▼▼▼ */
+  rows=rows.filter(r=>r.days<0||r.days<=ad);
   /* ▲▲▲ v1.7 追加 ▲▲▲ */
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
