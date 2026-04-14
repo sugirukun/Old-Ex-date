@@ -745,9 +745,14 @@ async function registerItem(){
   await doRegister(currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode);
 }
 
+function closeDialog(){
+  document.getElementById('dialog-overlay').classList.remove('show');
+  document.getElementById('dialog-cancel').style.display='';
+  pendingRegister=null;
+}
+
 // ===== LOGOUT =====
 function doLogout(){
-  // 現役データの中で警告圏内（expired・warn）の商品があるか確認
   const ad=alertDays;
   const hasWarn=listData.some(r=>{
     if(r.is_archive)return false;
@@ -755,26 +760,22 @@ function doLogout(){
     return s==='expired'||s==='warn';
   });
   if(hasWarn){
-    // 警告圏内あり → 確認ダイアログ
     document.getElementById('dialog-title').textContent='期限切れ・警告圏内の商品が残っています';
     document.getElementById('dialog-msg').textContent='作業終了でよろしいですか？';
     const b1=document.getElementById('dialog-btn1');
     const b2=document.getElementById('dialog-btn2');
-    const bc=document.getElementById('dialog-cancel');
     b1.textContent='はい。もう終わります';b1.className='dialog-btn dialog-btn-blue';
     b1.onclick=()=>{closeDialog();execLogout(true);};
     b2.textContent='いいえ（作業を続ける）';b2.className='dialog-btn dialog-btn-gray';
     b2.onclick=()=>{closeDialog();};
-    bc.style.display='none';
+    document.getElementById('dialog-cancel').style.display='none';
     document.getElementById('dialog-overlay').classList.add('show');
   }else{
-    // 警告圏内なし → そのままログアウト
     execLogout(false);
   }
 }
 
 function execLogout(hadWarn){
-  // 状態リセット
   currentStaff='';currentDept='';listData=[];
   sortKey='expiry';sortDir=1;currentMaster=null;
   alertDays=7;
@@ -793,12 +794,6 @@ function execLogout(hadWarn){
   }else{
     toast('おつかれさまでした。',2500);
   }
-}
-
-function closeDialog(){
-  document.getElementById('dialog-overlay').classList.remove('show');
-  document.getElementById('dialog-cancel').style.display='';
-  pendingRegister=null;
 }
 
 async function archiveRecord(record){
