@@ -751,51 +751,6 @@ function closeDialog(){
   pendingRegister=null;
 }
 
-// ===== LOGOUT =====
-function doLogout(){
-  const ad=alertDays;
-  const hasWarn=listData.some(r=>{
-    if(r.is_archive)return false;
-    const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);
-    return s==='expired'||s==='warn';
-  });
-  if(hasWarn){
-    document.getElementById('dialog-title').textContent='期限切れ・警告圏内の商品が残っています';
-    document.getElementById('dialog-msg').textContent='作業終了でよろしいですか？';
-    const b1=document.getElementById('dialog-btn1');
-    const b2=document.getElementById('dialog-btn2');
-    b1.textContent='はい。もう終わります';b1.className='dialog-btn dialog-btn-blue';
-    b1.onclick=()=>{closeDialog();execLogout(true);};
-    b2.textContent='いいえ（作業を続ける）';b2.className='dialog-btn dialog-btn-gray';
-    b2.onclick=()=>{closeDialog();};
-    document.getElementById('dialog-cancel').style.display='none';
-    document.getElementById('dialog-overlay').classList.add('show');
-  }else{
-    execLogout(false);
-  }
-}
-
-function execLogout(hadWarn){
-  currentStaff='';currentDept='';listData=[];
-  sortKey='expiry';sortDir=1;currentMaster=null;
-  alertDays=7;
-  document.getElementById('main-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('login-name').value='';
-  document.getElementById('login-dept').value='';
-  document.getElementById('tbody').innerHTML='';
-  document.getElementById('s-total').textContent='0';
-  document.getElementById('s-expired').textContent='0';
-  document.getElementById('s-warn').textContent='0';
-  document.getElementById('s-done').textContent='0';
-  document.getElementById('s-prog').style.width='0%';
-  if(hadWarn){
-    toast('期限切れ・警告圏内商品があることを報告してください。おつかれさまでした。',4000);
-  }else{
-    toast('おつかれさまでした。',2500);
-  }
-}
-
 async function archiveRecord(record){
   const payload={jan:record.jan,aisle:record.aisle,expiry:record.expiry,expired_qty:record.expired_qty||0,discount_location:record.discount_location,staff:record.staff,registered_at:record.registered_at,checked_at:todayStr(),department:record.department,name:record.name,own_code:record.own_code,category:record.category,high_expiry_flag:record.high_expiry_flag||false};
   const {error:archErr}=await sb.from('expiry_archives').insert(payload);
@@ -1240,6 +1195,50 @@ async function toggleCheck(id,current){
     await sb.from('expiry_archives').delete().eq('id',id);
     toast('済を解除して現役に戻しました');
     loadList();
+  }
+}
+
+// ===== LOGOUT =====
+function doLogout(){
+  const ad=alertDays;
+  const hasWarn=listData.some(r=>{
+    if(r.is_archive)return false;
+    const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);
+    return s==='expired'||s==='warn';
+  });
+  if(hasWarn){
+    document.getElementById('dialog-title').textContent='期限切れ・警告圏内の商品が残っています';
+    document.getElementById('dialog-msg').textContent='作業終了でよろしいですか？';
+    const b1=document.getElementById('dialog-btn1');
+    const b2=document.getElementById('dialog-btn2');
+    b1.textContent='はい。もう終わります';b1.className='dialog-btn dialog-btn-blue';
+    b1.onclick=()=>{closeDialog();execLogout(true);};
+    b2.textContent='いいえ（作業を続ける）';b2.className='dialog-btn dialog-btn-gray';
+    b2.onclick=()=>{closeDialog();};
+    document.getElementById('dialog-cancel').style.display='none';
+    document.getElementById('dialog-overlay').classList.add('show');
+  }else{
+    execLogout(false);
+  }
+}
+function execLogout(hadWarn){
+  currentStaff='';currentDept='';listData=[];
+  sortKey='expiry';sortDir=1;currentMaster=null;
+  alertDays=7;
+  document.getElementById('main-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-name').value='';
+  document.getElementById('login-dept').value='';
+  document.getElementById('tbody').innerHTML='';
+  document.getElementById('s-total').textContent='0';
+  document.getElementById('s-expired').textContent='0';
+  document.getElementById('s-warn').textContent='0';
+  document.getElementById('s-done').textContent='0';
+  document.getElementById('s-prog').style.width='0%';
+  if(hadWarn){
+    toast('期限切れ・警告圏内商品があることを報告してください。おつかれさまでした。',4000);
+  }else{
+    toast('おつかれさまでした。',2500);
   }
 }
 </script>
