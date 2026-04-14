@@ -1,4 +1,4 @@
-<!-- v1.4 2026-04-14 履歴フィルターを「現役のみ／履歴のみ／すべて」の3択に変更 -->
+<!-- v1.5 2026-04-14 登録フォーム選択肢追加（売り切り方法・ぶっとおし・値下げ場所）、個数0入力を許可 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -258,6 +258,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <label>売り切り方法</label>
           <select id="reg-selloff-method">
             <option value="">選択してください</option>
+            <option value="売り切ってない">売り切ってない</option>
             <option value="オフシール">オフシール</option>
             <option value="ESL">ESL</option>
           </select>
@@ -266,6 +267,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <label>ぶっとおし</label>
           <select id="reg-buttoshi">
             <option value="">選択してください</option>
+            <option value="作業時（登録日当日）は値引きがないので未登録">作業時（登録日当日）は値引きがないので未登録</option>
             <option value="登録時ぶっとおしではない">登録時ぶっとおしではない</option>
             <option value="登録時ぶっとおし">登録時ぶっとおし</option>
           </select>
@@ -274,6 +276,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <label>値下げ処理商品の場所</label>
           <select id="reg-discount-type" onchange="handleRegisterDiscountTypeChange()">
             <option value="">選択してください</option>
+            <option value="作業時（登録日当日）は値引きがないので未登録">作業時（登録日当日）は値引きがないので未登録</option>
             <option value="売り切りワゴン">売り切りワゴン</option>
             <option value="定番棚のまま">定番棚のまま</option>
             <option value="custom">フリーワード入力</option>
@@ -399,7 +402,7 @@ const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const today = new Date(); today.setHours(0,0,0,0);
-const DISCOUNT_PRESETS = ['売り切りワゴン','定番棚のまま'];
+const DISCOUNT_PRESETS = ['作業時（登録日当日）は値引きがないので未登録','売り切りワゴン','定番棚のまま'];
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
 function calcMarkdownTarget(expiry, sellingTolerance){
   const targetDays = checkInterval + (sellingTolerance || 0);
@@ -698,8 +701,8 @@ async function registerItem(){
   const discount=getRegisterDiscountValue();
   if(!aisle){toast('通路番号を選択してください');return;}
   if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
-  if(qtyRaw===''||Number.isNaN(qty)||qty<0){toast('期限切れ個数を入力してください');return;}
-  if(!discount){toast('値下げ処理商品の場所を入力してください');return;}
+  if(qtyRaw===''||Number.isNaN(qty)||qty<0){toast('販売許容期限切れ個数を入力してください（0個の場合も0を入力）');return;}
+  if(!discount){toast('値下げ処理商品の場所を選択してください');return;}
   const selloffMethod=document.getElementById('reg-selloff-method').value;
   const buttoshi=document.getElementById('reg-buttoshi').value;
   const eslCode='';
