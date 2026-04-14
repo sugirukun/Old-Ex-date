@@ -1038,28 +1038,36 @@ function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}re
 
 function renderList(){
   const ad=alertDays;
-  const fs=document.getElementById('filter-status').value;
-  const fa=document.getElementById('filter-aisle').value;
-  const fc=document.getElementById('filter-cat').value;
-  const fd=document.getElementById('filter-dept').value;
-  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
-  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
-  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-  if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
-  if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
-  else if(fs==='stale')rows=rows.filter(r=>isStale(r));
-  /* ▼▼▼ v1.1 修正: statusOfに4引数を渡す（元々4引数だった） ▼▼▼ */
-  else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-  /* ▲▲▲ v1.1 修正 ▲▲▲ */
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
-  /* ▼▼▼ v1.7 追加: 期限切れは常に表示、それ以外はdays<=alertDaysで絞り込む ▼▼▼ */
-  rows=rows.filter(r=>r.days<0||r.days<=ad);
-  /* ▲▲▲ v1.7 追加 ▲▲▲ */
-  /* ▼▼▼ v1.7 追加: 商品名・自社コード・JANコード・通路番号・カテゴリ検索 ▼▼▼ */
   const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();
-  if(sq)rows=rows.filter(r=>[r.name,r.own_code,r.jan,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)));
-  /* ▲▲▲ v1.7 追加 ▲▲▲ */
+  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+  /* ▼▼▼ v1.7 修正: 検索時は全フィルターをスルー（店長は全件・他部門は自部門のみ） ▼▼▼ */
+  if(sq){
+    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+    rows=rows.filter(r=>{
+      if([r.name,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
+      if(sq.length>=4&&[r.own_code,r.jan].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
+      return false;
+    });
+  }else{
+    const fs=document.getElementById('filter-status').value;
+    const fa=document.getElementById('filter-aisle').value;
+    const fc=document.getElementById('filter-cat').value;
+    const fd=document.getElementById('filter-dept').value;
+    if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
+    if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+    else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+    if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
+    else if(fs==='stale')rows=rows.filter(r=>isStale(r));
+    /* ▼▼▼ v1.1 修正: statusOfに4引数を渡す（元々4引数だった） ▼▼▼ */
+    else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
+    /* ▲▲▲ v1.1 修正 ▲▲▲ */
+    if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
+    /* ▼▼▼ v1.7 追加: 期限切れは常に表示、それ以外はdays<=alertDaysで絞り込む ▼▼▼ */
+    rows=rows.filter(r=>r.days<0||r.days<=ad);
+    /* ▲▲▲ v1.7 追加 ▲▲▲ */
+  }
+  /* ▲▲▲ v1.7 修正 ▲▲▲ */
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
     if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
