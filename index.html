@@ -1,4 +1,4 @@
-<!-- v1.2 2026-04-14 処理済みアーカイブの期限切れカウント修正・expired_qty実績引き継ぎ修正 -->
+<!-- v1.3 2026-04-14 済チェック時・個数0時の確認ダイアログ追加 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -716,8 +716,10 @@ async function registerItem(){
       document.getElementById('dialog-msg').textContent='同じ通路で同じ賞味期限の登録があります。上書きになりますが続行しますか？';
       document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
       document.getElementById('dialog-btn1').textContent='はい（上書き）';
+      document.getElementById('dialog-btn1').onclick=()=>dialogAction(1);
       document.getElementById('dialog-btn2').className='dialog-btn dialog-btn-gray';
       document.getElementById('dialog-btn2').textContent='いいえ（キャンセル）';
+      document.getElementById('dialog-btn2').onclick=()=>dialogAction(2);
       document.getElementById('dialog-cancel').style.display='none';
       document.getElementById('dialog-overlay').classList.add('show');
       return;
@@ -727,8 +729,10 @@ async function registerItem(){
     document.getElementById('dialog-msg').textContent=`「${currentMaster.name}」はすでに登録されています。どうしますか？`;
     document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
     document.getElementById('dialog-btn1').textContent='同じ通路で別の期限で登録する';
+    document.getElementById('dialog-btn1').onclick=()=>dialogAction(1);
     document.getElementById('dialog-btn2').className='dialog-btn dialog-btn-red';
     document.getElementById('dialog-btn2').textContent='異なる通路番号で登録する（複数箇所陳列用）';
+    document.getElementById('dialog-btn2').onclick=()=>dialogAction(2);
     document.getElementById('dialog-cancel').style.display='';
     document.getElementById('dialog-overlay').classList.add('show');
     return;
@@ -904,6 +908,15 @@ async function adjustExpiredQty(id,delta,isArchive){
   const item=listData.find(r=>r.id===id&&!r.is_archive);if(!item)return;
   const nextQty=Math.max(0,(parseInt(item.expired_qty,10)||0)+delta);
   if(nextQty===item.expired_qty)return;
+  // 個数が0になった場合、処理済みにするか確認
+  if(nextQty===0){
+    showQtyZeroDialog(id,item);
+    return;
+  }
+  await doUpdateExpiredQty(id,item,nextQty);
+}
+
+async function doUpdateExpiredQty(id,item,nextQty){
   showLoading(true);
   const {error}=await sb.from('expiry_records').update({expired_qty:nextQty,qty_updated_at:todayStr()}).eq('id',id);
   showLoading(false);
@@ -914,6 +927,72 @@ async function adjustExpiredQty(id,delta,isArchive){
     item.high_expiry_flag=true;
   }
   renderList();
+}
+
+// ===== 個数0確認ダイアログ =====
+let _qtyZeroId=null,_qtyZeroItem=null;
+function showQtyZeroDialog(id,item){
+  _qtyZeroId=id;_qtyZeroItem=item;
+  document.getElementById('dialog-title').textContent='販売許容期限切れ個数が0になりました';
+  document.getElementById('dialog-msg').textContent='期限切れ商品はすべて処理済みですか？';
+  const b1=document.getElementById('dialog-btn1');
+  const b2=document.getElementById('dialog-btn2');
+  const bc=document.getElementById('dialog-cancel');
+  b1.textContent='はい（0にして済にする）';b1.className='dialog-btn dialog-btn-blue';b1.onclick=()=>qtyZeroAction(true);
+  b2.textContent='いいえ（0のまま残す）';b2.className='dialog-btn dialog-btn-gray';b2.onclick=()=>qtyZeroAction(false);
+  bc.style.display='none';
+  document.getElementById('dialog-overlay').classList.add('show');
+}
+async function qtyZeroAction(doArchive){
+  closeDialog();
+  document.getElementById('dialog-cancel').style.display='';
+  const id=_qtyZeroId,item=_qtyZeroItem;
+  _qtyZeroId=null;_qtyZeroItem=null;
+  await doUpdateExpiredQty(id,item,0);
+  if(doArchive) await doArchiveItem(id);
+}
+
+// ===== 済チェック確認ダイアログ =====
+let _pendingCheckId=null;
+function showCheckConfirmDialog(id,item){
+  _pendingCheckId=id;
+  document.getElementById('dialog-title').textContent='販売許容期限切れ個数が残っています（'+item.expired_qty+'個）';
+  document.getElementById('dialog-msg').textContent='すべて処理済みですか？';
+  const b1=document.getElementById('dialog-btn1');
+  const b2=document.getElementById('dialog-btn2');
+  const bc=document.getElementById('dialog-cancel');
+  b1.textContent='はい。期限切れはもうありません';b1.className='dialog-btn dialog-btn-blue';b1.onclick=()=>checkConfirmAction(true);
+  b2.textContent='いいえ　まだ期限切れが残っています';b2.className='dialog-btn dialog-btn-red';b2.onclick=()=>checkConfirmAction(false);
+  bc.style.display='none';
+  document.getElementById('dialog-overlay').classList.add('show');
+}
+async function checkConfirmAction(allDone){
+  closeDialog();
+  document.getElementById('dialog-cancel').style.display='';
+  const id=_pendingCheckId;_pendingCheckId=null;
+  const item=listData.find(r=>r.id===id);if(!item)return;
+  if(allDone){
+    // 個数を0にしてからアーカイブ
+    showLoading(true);
+    await sb.from('expiry_records').update({expired_qty:0,qty_updated_at:todayStr()}).eq('id',id);
+    showLoading(false);
+    item.expired_qty=0;
+    await doArchiveItem(id);
+  }
+  // いいえの場合は何もしない（チェックはつけない）
+}
+
+// ===== アーカイブ実行（共通） =====
+async function doArchiveItem(id){
+  const item=listData.find(r=>r.id===id);if(!item)return;
+  showLoading(true);
+  const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty||0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
+  if(archErr){showLoading(false);toast('アーカイブに失敗しました：'+archErr.message);return;}
+  const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
+  showLoading(false);
+  if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
+  toast('済にしてアーカイブしました');
+  loadList();
 }
 
 async function updateDiscountLocation(id,value,isArchive){
@@ -1093,18 +1172,23 @@ async function deleteRecord(id,isArchive){
 async function toggleCheck(id,current){
   const item=listData.find(r=>r.id===id);if(!item)return;
   if(!current){
-    const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty||0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
-    if(archErr){toast('アーカイブに失敗しました：'+archErr.message);return;}
-    const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
-    if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
-    toast('済にしてアーカイブしました');
+    // 済にする → 個数が0以外なら確認ダイアログ
+    const qty=parseInt(item.expired_qty,10)||0;
+    if(qty>0){
+      showCheckConfirmDialog(id,item);
+      return;
+    }
+    await doArchiveItem(id);
   }else{
+    // 済解除
+    showLoading(true);
     const{error:restErr}=await sb.from('expiry_records').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked:false});
+    showLoading(false);
     if(restErr){toast('復元に失敗しました：'+restErr.message);return;}
     await sb.from('expiry_archives').delete().eq('id',id);
     toast('済を解除して現役に戻しました');
+    loadList();
   }
-  loadList();
 }
 </script>
 </body>
