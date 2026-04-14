@@ -1,4 +1,4 @@
-<!-- v1.1 statusOf修正版 2026-04-09 値引き対象を警告圏内に統合 -->
+<!-- v1.2 2026-04-14 処理済みアーカイブの期限切れカウント修正・expired_qty実績引き継ぎ修正 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -973,9 +973,9 @@ function renderList(){
     if(sortKey==='aisle'){const n1=parseInt(av),n2=parseInt(bv);if(n1!==n2)return(n1-n2)*sortDir;av=String(av).slice(-1);bv=String(bv).slice(-1);}
     return av<bv?-sortDir:av>bv?sortDir:0;
   });
-  const exp=listData.filter(r=>daysLeft(r.expiry)<0).length;
+  const exp=listData.filter(r=>!r.is_archive&&daysLeft(r.expiry)<0).length;
   /* ▼▼▼ v1.1 修正: warnカウントもstatusOfで統一判定 ▼▼▼ */
-  const warn=listData.filter(r=>{const d=daysLeft(r.expiry);return statusOf(d,ad,r.expiry,r.selling_tolerance)==='warn';}).length;
+  const warn=listData.filter(r=>{if(r.is_archive)return false;const d=daysLeft(r.expiry);return statusOf(d,ad,r.expiry,r.selling_tolerance)==='warn';}).length;
   /* ▲▲▲ v1.1 修正 ▲▲▲ */
   const done=listData.filter(r=>r.checked).length;
   document.getElementById('s-total').textContent=listData.length;
@@ -1093,7 +1093,7 @@ async function deleteRecord(id,isArchive){
 async function toggleCheck(id,current){
   const item=listData.find(r=>r.id===id);if(!item)return;
   if(!current){
-    const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
+    const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty||0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
     if(archErr){toast('アーカイブに失敗しました：'+archErr.message);return;}
     const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
     if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
