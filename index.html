@@ -1,4 +1,4 @@
-<!-- v1.3 2026-04-14 済チェック時・個数0時の確認ダイアログ追加 -->
+<!-- v1.4 2026-04-14 履歴フィルターを「現役のみ／履歴のみ／すべて」の3択に変更 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -321,7 +321,8 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <label>履歴：</label>
       <select id="filter-archive" onchange="loadList()">
         <option value="current">現役のみ</option>
-        <option value="archive">履歴を含む</option>
+        <option value="archive">履歴のみ</option>
+        <option value="all">すべて</option>
       </select>
       <label>通路：</label>
       <select id="filter-aisle" onchange="renderList()"><option value="all">すべて</option></select>
@@ -813,10 +814,12 @@ async function loadList(){
   showLoading(true);
   const archiveMode=document.getElementById('filter-archive')?.value||'current';
   let current=[],archives=[];
-  const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, selling_tolerance)').order('expiry',{ascending:true});
-  if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
-  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance||0,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
-  if(archiveMode==='archive'){
+  if(archiveMode==='current'||archiveMode==='all'){
+    const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, selling_tolerance)').order('expiry',{ascending:true});
+    if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
+    current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance||0,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
+  }
+  if(archiveMode==='archive'||archiveMode==='all'){
     const {data:d2}=await sb.from('expiry_archives').select('*').order('checked_at',{ascending:false});
     if(d2){archives=d2.map(r=>({...r,days:daysLeft(r.expiry),checked:true,is_archive:true,high_expiry_flag:r.high_expiry_flag||false}));}
   }
