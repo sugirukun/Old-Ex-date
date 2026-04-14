@@ -334,9 +334,8 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
       <label>賞味期限切れまで</label>
-      <button onclick="changeAlertDays(-1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">－</button>
-      <span id="alert-days-disp" style="font-size:13px;font-weight:500;min-width:24px;text-align:center;display:inline-block;">7</span>
-      <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
+      <input type="range" id="alert-days-slider" min="1" max="60" value="7" oninput="syncAlertDays('slider')" style="width:100px;accent-color:#185FA5;cursor:pointer;" />
+      <input type="number" id="alert-days-num" min="1" max="60" value="7" oninput="syncAlertDays('num')" style="width:52px;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;" />
       <label>日以内</label>
       <input type="search" id="filter-search" placeholder="🔍 商品名・コード・通路・カテゴリ" oninput="renderList()" style="font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;min-width:200px;" />
     </div>
@@ -882,7 +881,7 @@ function setColMode(mode){
 }
 
 let alertDays=7;
-function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
+function syncAlertDays(src){const s=document.getElementById('alert-days-slider'),n=document.getElementById('alert-days-num');if(src==='slider'){alertDays=Math.max(1,Math.min(60,parseInt(s.value)||1));n.value=alertDays;}else{alertDays=Math.max(1,Math.min(60,parseInt(n.value)||1));s.value=alertDays;}renderList();}
 
 function toggleCol(col,visible){
   colMode='custom';
@@ -1232,7 +1231,7 @@ function doLogout(){
 function execLogout(hadWarn){
   currentStaff='';currentDept='';listData=[];
   sortKey='expiry';sortDir=1;currentMaster=null;
-  alertDays=7;
+  alertDays=7;document.getElementById('alert-days-slider').value=7;document.getElementById('alert-days-num').value=7;
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-name').value='';
