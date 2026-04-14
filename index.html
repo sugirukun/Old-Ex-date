@@ -1041,7 +1041,7 @@ function renderList(){
   const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();
   let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
   /* ▼▼▼ v1.7 修正: 検索時は全フィルターをスルー（店長は全件・他部門は自部門のみ） ▼▼▼ */
-  if(sq){
+  if(sq&&sq.length>=2){
     if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
     rows=rows.filter(r=>{
       if([r.name,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
