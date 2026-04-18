@@ -1,7 +1,5 @@
 <!-- ============================================================
   賞味期限管理アプリ v2.0
-  作成経緯：バイブコーディング × Claude によって段階的に構築
-  
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
   ・<style>タグ  → 見た目（色・サイズ・レイアウト）の設定
@@ -205,16 +203,13 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   #print-area thead { display: table-header-group; }
   #print-area th { background: #f0f0f0 !important; border: 1px solid #ccc; padding: 4px 6px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #print-area td { border: 1px solid #ccc; padding: 4px 6px; }
-  #print-area .print-main-row td { vertical-align: middle; }
-  #print-area .print-barcode-row td { padding-top: 6px; padding-bottom: 8px; }
-  #print-area .print-barcode-spacer { background: #fff !important; }
-  #print-area .print-barcode-cell { text-align: center; }
-  #print-area .print-barcode-layout { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
-  #print-area .print-barcode-wrap { flex: 1 1 58%; text-align: center; }
-  #print-area .print-supplement { flex: 0 0 34%; min-width: 160px; font-size: 9px; line-height: 1.45; text-align: left; }
-  #print-area .print-meta-item { display: flex; gap: 6px; margin-bottom: 2px; }
-  #print-area .print-meta-label { flex: 0 0 76px; color: #666; font-weight: 600; }
-  #print-area .print-meta-value { flex: 1 1 auto; word-break: break-word; }
+  #print-area .print-item { border: 1px solid #ccc; margin-bottom: 8px; break-inside: avoid; }
+  #print-area .print-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+  #print-area .print-info-table td { border: 1px solid #ccc; padding: 4px 6px; vertical-align: top; }
+  #print-area .print-label-cell { width: 11%; background: #f6f6f6; color: #666; font-weight: 600; }
+  #print-area .print-value-cell { width: 22%; word-break: break-word; white-space: normal; }
+  #print-area .print-value-cell.is-name { font-weight: 600; }
+  #print-area .print-barcode-row td { padding: 8px 6px; text-align: center; }
   #print-area .print-barcode-block { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; }
   #print-area .print-barcode-block svg { width: 220px; max-width: 100%; height: 42px; }
   #print-area .print-barcode-number { font-size: 10px; letter-spacing: 1px; font-family: monospace; }
@@ -1270,17 +1265,6 @@ function printCellHtml(r,col,ad){
   }
 }
 
-const PRINT_SECONDARY_COLS=new Set([6,9,11,12,13,14,15,16,17,18]);
-
-function getPrintColumnGroups(visibleCols){
-  const primaryCols=visibleCols.filter(col=>!PRINT_SECONDARY_COLS.has(col));
-  const secondaryCols=visibleCols.filter(col=>PRINT_SECONDARY_COLS.has(col));
-  return{
-    primaryCols:primaryCols.length?primaryCols:visibleCols.slice(0,1),
-    secondaryCols
-  };
-}
-
 function printValueText(r,col,ad){
   const days=r.days!=null?r.days:daysLeft(r.expiry);
   switch(col){
@@ -1307,14 +1291,29 @@ function printValueText(r,col,ad){
   }
 }
 
-function printSupplementHtml(r,cols,ad){
-  const items=cols.map(col=>{
-    const value=printValueText(r,col,ad);
-    if(!value)return'';
-    return `<div class="print-meta-item"><div class="print-meta-label">${escapeHtml(COLUMN_DEFS[col]?.label||'')}</div><div class="print-meta-value">${escapeHtml(value)}</div></div>`;
-  }).filter(Boolean).join('');
-  if(!items)return'';
-  return `<div class="print-supplement">${items}</div>`;
+function buildPrintInfoRows(r,visibleCols,ad){
+  const fields=visibleCols.map(col=>({
+    col,
+    label:COLUMN_DEFS[col]?.label||'',
+    value:printValueText(r,col,ad)
+  }));
+  const rows=[];
+  for(let i=0;i<fields.length;i+=3){
+    rows.push(fields.slice(i,i+3));
+  }
+  return rows.map(row=>{
+    let html='<tr>';
+    row.forEach(field=>{
+      const nameClass=field.col===5?' is-name':'';
+      html+=`<td class="print-label-cell">${escapeHtml(field.label)}</td>`;
+      html+=`<td class="print-value-cell${nameClass}">${escapeHtml(field.value||'')}</td>`;
+    });
+    for(let i=row.length;i<3;i++){
+      html+=`<td class="print-label-cell"></td><td class="print-value-cell"></td>`;
+    }
+    html+='</tr>';
+    return html;
+  }).join('');
 }
 
 // ============================================================
@@ -1643,30 +1642,21 @@ function printList(){
   const ad=alertDays;
   const rows=getFilteredSortedRows();
   const visibleCols=getVisibleColumnIds();
-  const {primaryCols,secondaryCols}=getPrintColumnGroups(visibleCols);
-  const barcodeAnchorIndex=Math.max(0,primaryCols.indexOf(5)>=0?primaryCols.indexOf(5):Math.min(primaryCols.length-1,1));
-  const spacerCount=barcodeAnchorIndex;
-  const barcodeColspan=Math.max(1,primaryCols.length-spacerCount);
 
   // 印刷専用のdivを動的に作ってbodyに追加（印刷後は自動削除）
   const div=document.createElement('div');div.id='print-area';div.style.cssText='display:none;';
   let html=`<div style="font-size:12px;margin-bottom:6px;">賞味期限管理リスト　${todayStr()}　担当:${escapeHtml(currentStaff)}　${escapeHtml(currentDept)}</div>`;
-  html+=`<table><thead><tr>`;
-  primaryCols.forEach(col=>{html+=`<th>${escapeHtml(COLUMN_DEFS[col]?.label||'')}</th>`;});
-  html+=`</tr></thead><tbody>`;
   rows.forEach(r=>{
     const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);
     // 期限切れ行はピンク、警告行はオレンジ背景
     const bg=s==='expired'?'background:#fde8e8;':s==='warn'?'background:#fef3e2;':'';
-    html+=`<tr class="print-main-row" style="${bg}">`;
-    primaryCols.forEach(col=>{html+=printCellHtml(r,col,ad);});
-    html+=`</tr>`;
-    html+=`<tr class="print-barcode-row" style="${bg}">`;
-    for(let i=0;i<spacerCount;i++)html+=`<td class="print-barcode-spacer"></td>`;
-    html+=`<td class="print-barcode-cell" colspan="${barcodeColspan}"><div class="print-barcode-layout"><div class="print-barcode-wrap">${barcodeSvgForPrint(r.jan)}</div>${printSupplementHtml(r,secondaryCols,ad)}</div></td>`;
-    html+=`</tr>`;
+    html+=`<div class="print-item" style="${bg}">`;
+    html+=`<table class="print-info-table"><tbody>`;
+    html+=buildPrintInfoRows(r,visibleCols,ad);
+    html+=`<tr class="print-barcode-row"><td colspan="6">${barcodeSvgForPrint(r.jan)}</td></tr>`;
+    html+=`</tbody></table>`;
+    html+=`</div>`;
   });
-  html+=`</tbody></table>`;
   div.innerHTML=html;document.body.appendChild(div);div.style.display='block';
   window.print();
   setTimeout(()=>div.remove(),1000);// 印刷後1秒で印刷用divを削除
