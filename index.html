@@ -203,15 +203,15 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   #print-area thead { display: table-header-group; }
   #print-area th { background: #f0f0f0 !important; border: 1px solid #ccc; padding: 4px 6px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #print-area td { border: 1px solid #ccc; padding: 4px 6px; }
-  #print-area .print-item { border: 1px solid #ccc; margin-bottom: 8px; break-inside: avoid; }
-  #print-area .print-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
-  #print-area .print-info-table td { border: 1px solid #ccc; padding: 4px 6px; vertical-align: top; }
-  #print-area .print-label-cell { width: 11%; background: #f6f6f6; color: #666; font-weight: 600; }
-  #print-area .print-value-cell { width: 22%; word-break: break-word; white-space: normal; }
+  #print-area .print-item { border: 1px solid #ccc; margin-bottom: 8px; padding: 6px; break-inside: avoid-page; page-break-inside: avoid; }
+  #print-area .print-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
+  #print-area .print-field { display: grid; grid-template-columns: 86px minmax(0,1fr); border: 1px solid #ccc; min-height: 28px; }
+  #print-area .print-label-cell { background: #f6f6f6; color: #666; font-weight: 600; padding: 4px 6px; border-right: 1px solid #ccc; }
+  #print-area .print-value-cell { padding: 4px 6px; word-break: break-word; white-space: normal; min-width: 0; }
   #print-area .print-value-cell.is-name { font-weight: 600; }
-  #print-area .print-barcode-row td { padding: 8px 6px; text-align: center; }
+  #print-area .print-barcode-row { margin-top: 8px; text-align: center; page-break-inside: avoid; }
   #print-area .print-barcode-block { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; }
-  #print-area .print-barcode-block img { width: 280px; max-width: 100%; height: auto; display: block; image-rendering: crisp-edges; }
+  #print-area .print-barcode-block img { width: 360px; max-width: 100%; height: 96px; display: block; image-rendering: pixelated; object-fit: contain; }
   #print-area .print-barcode-number { font-size: 10px; letter-spacing: 1px; font-family: monospace; }
   /* 期限切れ行はピンク、警告行はオレンジで印刷 */
   #print-area tr[style*="fde8e8"] { background: #fde8e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -1235,9 +1235,9 @@ function barcodeSvgForPrint(jan){
     JsBarcode(canvas,value,{
       format,
       displayValue:false,
-      margin:8,
-      width:2,
-      height:56,
+      margin:12,
+      width:3,
+      height:88,
       background:'#ffffff',
       lineColor:'#000000'
     });
@@ -1305,22 +1305,9 @@ function buildPrintInfoRows(r,visibleCols,ad){
     label:COLUMN_DEFS[col]?.label||'',
     value:printValueText(r,col,ad)
   }));
-  const rows=[];
-  for(let i=0;i<fields.length;i+=3){
-    rows.push(fields.slice(i,i+3));
-  }
-  return rows.map(row=>{
-    let html='<tr>';
-    row.forEach(field=>{
-      const nameClass=field.col===5?' is-name':'';
-      html+=`<td class="print-label-cell">${escapeHtml(field.label)}</td>`;
-      html+=`<td class="print-value-cell${nameClass}">${escapeHtml(field.value||'')}</td>`;
-    });
-    for(let i=row.length;i<3;i++){
-      html+=`<td class="print-label-cell"></td><td class="print-value-cell"></td>`;
-    }
-    html+='</tr>';
-    return html;
+  return fields.map(field=>{
+    const nameClass=field.col===5?' is-name':'';
+    return `<div class="print-field"><div class="print-label-cell">${escapeHtml(field.label)}</div><div class="print-value-cell${nameClass}">${escapeHtml(field.value||'')}</div></div>`;
   }).join('');
 }
 
@@ -1659,10 +1646,10 @@ function printList(){
     // 期限切れ行はピンク、警告行はオレンジ背景
     const bg=s==='expired'?'background:#fde8e8;':s==='warn'?'background:#fef3e2;':'';
     html+=`<div class="print-item" style="${bg}">`;
-    html+=`<table class="print-info-table"><tbody>`;
+    html+=`<div class="print-grid">`;
     html+=buildPrintInfoRows(r,visibleCols,ad);
-    html+=`<tr class="print-barcode-row"><td colspan="6">${barcodeSvgForPrint(r.jan)}</td></tr>`;
-    html+=`</tbody></table>`;
+    html+=`</div>`;
+    html+=`<div class="print-barcode-row">${barcodeSvgForPrint(r.jan)}</div>`;
     html+=`</div>`;
   });
   div.innerHTML=html;document.body.appendChild(div);div.style.display='block';
