@@ -198,7 +198,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   body * { visibility: hidden; }
   #print-area, #print-area * { visibility: visible; }
   #print-area { position: fixed; top: 0; left: 0; width: 100%; }
-  @page { size: A4 portrait; margin: 10mm; }
+  @page { size: A4 landscape; margin: 10mm; }
   #print-area table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
   #print-area thead { display: table-header-group; }
   #print-area th { background: #f0f0f0 !important; border: 1px solid #ccc; padding: 4px 6px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -211,7 +211,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   #print-area .print-value-cell.is-name { font-weight: 600; }
   #print-area .print-barcode-row td { padding: 8px 6px; text-align: center; }
   #print-area .print-barcode-block { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; }
-  #print-area .print-barcode-block svg { width: 220px; max-width: 100%; height: 42px; }
+  #print-area .print-barcode-block img { width: 280px; max-width: 100%; height: auto; display: block; image-rendering: crisp-edges; }
   #print-area .print-barcode-number { font-size: 10px; letter-spacing: 1px; font-family: monospace; }
   /* 期限切れ行はピンク、警告行はオレンジで印刷 */
   #print-area tr[style*="fde8e8"] { background: #fde8e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -1230,10 +1230,18 @@ function barcodeSvgForPrint(jan){
   if(!value)return'';
   if(typeof JsBarcode!=='function')return`<div class="print-barcode-number">${escapeHtml(value)}</div>`;
   try{
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    const canvas=document.createElement('canvas');
     const format=/^\d{8}$/.test(value)?'EAN8':/^\d{13}$/.test(value)?'EAN13':'CODE128';
-    JsBarcode(svg,value,{format,displayValue:false,margin:0,width:1.4,height:40});
-    return `<div class="print-barcode-block">${svg.outerHTML}<div class="print-barcode-number">${escapeHtml(value)}</div></div>`;
+    JsBarcode(canvas,value,{
+      format,
+      displayValue:false,
+      margin:8,
+      width:2,
+      height:56,
+      background:'#ffffff',
+      lineColor:'#000000'
+    });
+    return `<div class="print-barcode-block"><img src="${canvas.toDataURL('image/png')}" alt="barcode ${escapeAttr(value)}"><div class="print-barcode-number">${escapeHtml(value)}</div></div>`;
   }catch(_e){
     return `<div class="print-barcode-number">${escapeHtml(value)}</div>`;
   }
