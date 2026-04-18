@@ -1633,7 +1633,7 @@ function renderList(){
 // ============================================================
 
 // 現在のフィルター状態のデータを A4 印刷用HTMLに変換してブラウザ印刷を起動する
-function printList(){
+async function printList(){
   const existing=document.getElementById('print-area');if(existing)existing.remove();
   const ad=alertDays;
   const rows=getFilteredSortedRows();
@@ -1653,7 +1653,16 @@ function printList(){
     html+=`<div class="print-barcode-row">${barcodeSvgForPrint(r.jan)}</div>`;
     html+=`</div>`;
   });
-  div.innerHTML=html;document.body.appendChild(div);div.style.display='block';
+  div.innerHTML=html;document.body.prepend(div);div.style.display='block';
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await Promise.all([...div.querySelectorAll('img')].map(img=>{
+    if(img.complete)return Promise.resolve();
+    return new Promise(resolve=>{
+      img.addEventListener('load',resolve,{once:true});
+      img.addEventListener('error',resolve,{once:true});
+    });
+  }));
+  await new Promise(resolve=>setTimeout(resolve,120));
   window.print();
   setTimeout(()=>div.remove(),1000);// 印刷後1秒で印刷用divを削除
 }
