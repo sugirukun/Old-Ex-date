@@ -1,180 +1,102 @@
-<!-- ============================================================
-  賞味期限管理アプリ v2.0
-  作成経緯：バイブコーディング × Claude によって段階的に構築
-  
-  【ファイル構成の概要】
-  このファイル1つで画面・デザイン・動作のすべてが完結しています。
-  ・<style>タグ  → 見た目（色・サイズ・レイアウト）の設定
-  ・<body>タグ   → 画面に表示されるHTML部品
-  ・<script>タグ → アプリの動作ロジック（JavaScript）
-  
-  【データの流れ】
-  ブラウザ（このファイル）↔ Supabase（クラウドDB）
-  商品マスタ（products）・登録データ（expiry_records）・
-  済データ（expiry_archives）の3テーブルを使用
-============================================================ -->
+<!-- v2.0 印刷時JANバーコード画像付き2行レイアウト 2026-04-18 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>賞味期限管理</title>
-
-<!-- 外部ライブラリの読み込み（インターネット経由で機能を借りる） -->
-<!-- Supabase: クラウドDBとの通信を担当 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- Quagga: バーコード読み取り（BarcodeDetectorが使えないブラウザ向け予備） -->
 <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
-<!-- Tesseract.js: 棚札OCR（カメラで7桁コードを自動認識）用AI -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"></script>
 <style>
-/* ===== 全体のリセット =====
-   ブラウザごとのデフォルト余白をゼロにして、見た目を統一する */
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:15px;}
-/* フォームの文字がbodyと同じフォントになるよう明示 */
 input,select,button,textarea{font-family:inherit;}
-
-/* ===== ログイン画面 =====
-   画面中央に縦横中央揃えでカードを表示する */
 #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
 .login-card{background:#fff;border-radius:16px;padding:32px 24px;width:100%;max-width:320px;box-shadow:0 2px 12px rgba(0,0,0,0.08);}
 .login-card h1{font-size:18px;font-weight:600;margin-bottom:8px;text-align:center;}
 .login-card p{font-size:13px;color:#888;text-align:center;margin-bottom:24px;}
 .login-card input{width:100%;font-size:16px;padding:12px 14px;border:1px solid #ddd;border-radius:10px;margin-bottom:12px;outline:none;}
-/* フォーカス時（タップ/クリック中）は青枠で強調 */
 .login-card input:focus{border-color:#185FA5;}
 .login-card button{width:100%;font-size:16px;padding:13px;border:none;border-radius:10px;background:#185FA5;color:#fff;cursor:pointer;font-weight:500;}
-
-/* ===== メイン画面 ===== 
-   ログイン後に表示。初期はdisplay:noneで非表示 */
 #main-screen{display:none;min-height:100vh;}
-
-/* ===== 上部バー（ヘッダー） =====
-   スクロールしても常に画面上部に固定（position:sticky） */
 .topbar{background:#fff;padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;}
 .topbar h1{font-size:15px;font-weight:600;flex:1;}
-/* 担当者名・部門・設定値を表示する丸いバッジ */
 .staff-badge{font-size:12px;padding:4px 10px;border-radius:99px;background:#f0f0f0;color:#555;}
-
-/* ===== 商品登録パネル ===== */
 #panel-register{padding:16px;}
-/* セクションカード（白い角丸の塊） */
 .section{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;}
 .section h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;}
-/* 入力フィールド1つ分の枠 */
 .field{margin-bottom:14px;}
 .field label{display:block;font-size:13px;color:#555;margin-bottom:6px;font-weight:500;}
 .field input,.field select,.field textarea{width:100%;font-size:16px;padding:11px 13px;border:1px solid #ddd;border-radius:10px;outline:none;background:#fff;color:#1a1a1a;-webkit-appearance:none;}
 .field input:focus,.field select:focus{border-color:#185FA5;}
-/* 読み取り専用フィールドはグレー表示 */
 .field input[readonly]{background:#f8f8f8;color:#888;}
 .field textarea{resize:none;height:70px;}
 .field .hint{font-size:12px;color:#aaa;margin-top:4px;}
-
-/* ===== JANコード入力行（入力欄＋ボタンが横並び） ===== */
 .jan-row{display:flex;gap:8px;}
 .jan-row input{flex:1;}
 .jan-row button{padding:11px 14px;border:1px solid #ddd;border-radius:10px;background:#fff;font-size:13px;cursor:pointer;white-space:nowrap;color:#185FA5;font-weight:500;}
-
-/* ===== バーコードカメラ表示エリア ===== */
-#camera-wrap{margin-top:10px;display:none;}/* 初期は非表示 */
+#camera-wrap{margin-top:10px;display:none;}
 #camera-wrap video{width:100%;border-radius:10px;background:#000;}
 #camera-wrap .cam-hint{font-size:12px;color:#888;text-align:center;margin-top:6px;}
 #stop-camera{width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#e53;font-size:14px;cursor:pointer;}
-
-/* ===== 棚札OCRカメラエリア ===== */
-#master-result{display:none;}/* 商品マスター読み込み前は非表示 */
-
-/* ===== マスター表示カード（商品情報の確認用青いカード） ===== */
+#master-result{display:none;}
 .master-card{background:#f0f6ff;border:1px solid #c5d8f5;border-radius:10px;padding:12px 14px;margin-bottom:14px;}
 .master-card .m-name{font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px;}
 .master-card .m-row{display:flex;gap:8px;font-size:13px;color:#555;}
 .master-card .m-row span{background:#fff;border-radius:6px;padding:2px 8px;border:1px solid #ddd;}
-
-/* ===== 登録ボタン行（クリア＋登録する） ===== */
 .reg-actions{display:flex;gap:10px;margin-top:4px;}
 .reg-actions button{flex:1;padding:14px;border-radius:10px;font-size:15px;font-weight:500;cursor:pointer;border:none;}
 .btn-clear{background:#f0f0f0;color:#555;}
 .btn-register{background:#185FA5;color:#fff;}
-
-/* ===== サマリー統計（総商品数・期限切れ・警告・済の4マス） ===== */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px;background:#f5f5f5;}
 .stat{background:#fff;border-radius:10px;padding:10px 10px 8px;}
 .stat-label{font-size:10px;color:#888;margin-bottom:3px;}
 .stat-value{font-size:20px;font-weight:600;color:#1a1a1a;}
-/* 数字の色：赤＝期限切れ、琥珀＝警告、緑＝済 */
 .stat-value.red{color:#c0392b;}.stat-value.amber{color:#b7600a;}.stat-value.green{color:#1e8449;}
-/* 確認済み進捗バー */
 .progress-bar{height:3px;background:#eee;border-radius:2px;margin-top:4px;}
 .progress-fill{height:100%;border-radius:2px;background:#1e8449;transition:width .3s;}
-
-/* ===== フィルターバー（絞り込み操作エリア） ===== */
 .filter-bar{padding:10px 14px;background:#fff;border-bottom:1px solid #eee;display:flex;gap:8px;overflow-x:auto;align-items:center;-webkit-overflow-scrolling:touch;}
 .filter-bar label{font-size:12px;color:#888;white-space:nowrap;}
 .filter-bar select,.filter-bar input[type=number]{font-size:13px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;-webkit-appearance:none;white-space:nowrap;}
-
-/* ===== 一覧テーブル ===== */
-/* 横スクロール対応（列が多いので横にはみ出る） */
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;}
-/* ヘッダー行：スクロール時も上部に固定（position:sticky） */
 thead th{padding:8px 9px;text-align:left;font-weight:600;font-size:11px;color:#888;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;white-space:normal;line-height:1.4;min-width:55px;cursor:pointer;user-select:none;}
-thead th:hover{color:#185FA5;}/* ホバーで青くなりソート可能と示す */
+thead th:hover{color:#185FA5;}
 tbody tr{border-bottom:1px solid #f0f0f0;}
 tbody tr:active{background:#f8f8f8;}
-/* 済チェック済み行は薄く表示（opacity:35%） */
 tbody tr.checked-row{opacity:.35;}
 td{padding:8px 9px;vertical-align:middle;white-space:nowrap;}
-
-/* ===== バッジ（丸いラベル）の色定義 =====
-   赤＝期限切れ / 琥珀＝警告 / 緑＝余裕あり / グレー＝通常 / 紫＝特殊 */
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;}
 .badge-red{background:#fde8e8;color:#c0392b;}
 .badge-amber{background:#fef3e2;color:#b7600a;}
 .badge-green{background:#e8f8ee;color:#1e8449;}
 .badge-gray{background:#f0f0f0;color:#666;}
 .badge-purple{background:#f0eeff;color:#5b4bc4;}
-/* 7日以上滞留している行に表示する警告バッジ */
 .badge-stale{background:#fff0f0;color:#c0392b;border:1px solid #f5c6cb;}
-
-/* ===== チェックボックス・テキスト装飾 ===== */
 input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;}
-.muted{color:#bbb;font-size:12px;}/* データなし時の「—」表示 */
+.muted{color:#bbb;font-size:12px;}
 .own-label{font-size:10px;color:#aaa;display:block;}
 .own-code{font-size:11px;color:#666;font-family:monospace;}
 .jan-code{font-family:monospace;font-size:11px;color:#555;letter-spacing:0.5px;width:110px;display:inline-block;}
 .empty-row{padding:40px;text-align:center;color:#aaa;font-size:14px;}
-
-/* ===== 販売許容期限切れ個数の＋－ボタン ===== */
 .qty-stepper{display:inline-flex;align-items:center;gap:6px;}
 .qty-stepper button{width:24px;height:24px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;font-size:14px;line-height:1;cursor:pointer;}
 .qty-stepper button:disabled{opacity:.4;cursor:default;}
 .qty-value{min-width:28px;text-align:center;font-weight:600;color:#1a1a1a;}
-
-/* ===== 列表示カスタマイズのトグルバー ===== */
 .col-toggle-bar{padding:8px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .col-toggle-bar span{font-size:12px;color:#888;white-space:nowrap;}
 .toggle-item{display:flex;align-items:center;gap:5px;}
 .toggle-item label{font-size:11px;color:#555;white-space:nowrap;cursor:pointer;}
-
-/* ===== トグルスイッチのデザイン =====
-   --toggle-color という CSS変数で列ごとに色を変えている
-   デフォルトは青(#185FA5)。各toggle-itemのstyleで上書きされる */
 .toggle{position:relative;width:28px;height:16px;flex-shrink:0;}
-.toggle input{opacity:0;width:0;height:0;position:absolute;}/* チェックボックス本体は非表示 */
+.toggle input{opacity:0;width:0;height:0;position:absolute;}
 .toggle-slider{position:absolute;inset:0;background:#ddd;border-radius:99px;cursor:pointer;transition:.2s;}
 .toggle-slider:before{content:'';position:absolute;width:12px;height:12px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s;}
-/* ONのとき：列ごとの色(--toggle-color)でスライダーを塗る */
-.toggle input:checked+.toggle-slider{background:var(--toggle-color,#185FA5);}
-/* ONのとき：丸い部分を右にスライド */
+.toggle input:checked+.toggle-slider{background:#185FA5;}
 .toggle input:checked+.toggle-slider:before{transform:translateX(12px);}
-
-/* ===== 確認ダイアログ（モーダル）=====
-   半透明の黒背景の上に白いカードを表示する */
 #dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:998;display:none;align-items:center;justify-content:center;padding:20px;}
-#dialog-overlay.show{display:flex;}/* showクラスが付いたら表示 */
+#dialog-overlay.show{display:flex;}
 .dialog-box{background:#fff;border-radius:16px;padding:24px;width:100%;max-width:340px;}
 .dialog-box h3{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:8px;}
 .dialog-box p{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
@@ -183,18 +105,11 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 .dialog-btn-red{background:#c0392b !important;color:#fff !important;}
 .dialog-btn-gray{background:#f0f0f0 !important;color:#666 !important;}
 .dialog-btn-cancel{background:#e5e5e5 !important;color:#666 !important;font-size:13px;text-align:center;}
-
-/* ===== トーストメッセージ（画面下部に一時表示される通知） ===== */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:999;}
 #toast.show{opacity:1;}
-
-/* ===== ローディングスピナー（データ読み込み中の回転アニメ） ===== */
 #loading{position:fixed;inset:0;background:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center;z-index:999;display:none;}
 .spinner{width:32px;height:32px;border:3px solid #eee;border-top-color:#185FA5;border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-
-/* ===== 印刷用スタイル =====
-   印刷時は#print-area以外を非表示にしてA4で出力 */
 @media print {
   body * { visibility: hidden; }
   #print-area, #print-area * { visibility: visible; }
@@ -204,7 +119,10 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   #print-area thead { display: table-header-group; }
   #print-area th { background: #f0f0f0 !important; border: 1px solid #ccc; padding: 4px 6px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #print-area td { border: 1px solid #ccc; padding: 4px 6px; }
-  /* 期限切れ行はピンク、警告行はオレンジで印刷 */
+  #print-area .barcode-row td { border-top: none; padding-top: 0; }
+  #print-area .barcode-row .barcode-cell { padding: 2px 6px 6px; }
+  #print-area .barcode-cell svg { height: 30px; width: auto; }
+  #print-area .barcode-jan { font-family: monospace; font-size: 9px; color: #555; margin-top: 1px; }
   #print-area tr[style*="fde8e8"] { background: #fde8e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #print-area tr[style*="fef3e2"] { background: #fef3e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
@@ -212,14 +130,9 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 </head>
 <body>
 
-<!-- ローディング画面（Supabaseとの通信中に表示） -->
 <div id="loading"><div class="spinner"></div></div>
-
-<!-- トースト通知（登録完了・エラーなどを一時表示） -->
 <div id="toast"></div>
 
-<!-- ===== 確認ダイアログ（共通モーダル）=====
-     タイトル・メッセージ・ボタンはJSで動的に書き換えて使い回す -->
 <div id="dialog-overlay">
   <div class="dialog-box">
     <h3 id="dialog-title"></h3>
@@ -230,8 +143,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   </div>
 </div>
 
-<!-- ===== ログイン画面 =====
-     担当者名・部門・チェック間隔などを設定してログインする -->
 <div id="login-screen">
   <div class="login-card">
     <h1>賞味期限管理</h1>
@@ -255,8 +166,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
       <option value="29課（酒）">29課（酒）</option>
       <option value="41課（消耗品）">41課（消耗品）</option>
     </select>
-
-    <!-- 期限チェック間隔スライダー：値引き対象日の計算に使う（今日＋この日数が基準） -->
     <div style="margin-bottom:12px;">
       <label style="font-size:13px;color:#555;font-weight:500;display:block;margin-bottom:6px;">期限チェック間隔（日）</label>
       <div style="display:flex;align-items:center;gap:12px;">
@@ -265,8 +174,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         <span style="font-size:13px;color:#888;">日</span>
       </div>
     </div>
-
-    <!-- 販売許容期限フィルター設定：この日数以下の商品を一覧から除外するオプション -->
     <div style="margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
         <input type="checkbox" id="login-filter-low-tolerance" checked style="width:18px;height:18px;accent-color:#185FA5;cursor:pointer;" />
@@ -278,15 +185,11 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         <span style="font-size:13px;color:#888;">日以下</span>
       </div>
     </div>
-
     <button onclick="doLogin()">ログイン</button>
   </div>
 </div>
 
-<!-- ===== メイン画面（ログイン後に表示） ===== -->
 <div id="main-screen">
-
-  <!-- 上部固定バー：担当者・部門・設定値の表示 + 印刷・ログアウトボタン -->
   <div class="topbar">
     <h1>賞味期限管理</h1>
     <span class="staff-badge" id="staff-disp"></span>
@@ -294,34 +197,26 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
     <span class="staff-badge" id="interval-disp" style="background:#e8f5e9;color:#1e8449;"></span>
     <span class="staff-badge" id="tolerance-filter-disp" style="background:#fff3cd;color:#856404;"></span>
     <button onclick="printList()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;">🖨 印刷</button>
-    <button onclick="doLogout()" style="padding:6px 12px;border:1px solid #e8b4b4;border-radius:8px;background:#fff5f5;color:#c0392b;font-size:13px;cursor:pointer;font-weight:500;">ログアウト</button>
   </div>
 
-  <!-- ===== 商品登録パネル ===== -->
   <div id="panel-register">
     <div style="padding:12px 16px 4px;font-size:14px;font-weight:600;color:#555;background:#fff;border-bottom:1px solid #eee;">商品登録</div>
     <div class="section">
       <h3>自社コードを入力、または右の「バーコードボタン」を押してJANを読みとって下さい</h3>
-      <!-- コード入力行：手入力 / バーコードカメラ / 棚札OCR の3方法を選べる -->
       <div class="jan-row">
         <input type="text" id="jan-input" placeholder="スキャン or 入力" inputmode="numeric" />
         <button onclick="toggleCamera()">📷 バーコード</button>
         <button onclick="toggleOCR()">🔤 棚札OCR</button>
         <button onclick="lookupJAN()">検索</button>
       </div>
-
-      <!-- バーコードカメラ表示エリア（「バーコード」ボタンで表示/非表示が切り替わる） -->
       <div id="camera-wrap">
         <div id="camera-video" style="width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:240px;position:relative;"></div>
         <p class="cam-hint">バーコードをカメラに向けてください</p>
         <button id="stop-camera" onclick="stopCamera()">カメラを停止</button>
       </div>
-
-      <!-- 棚札OCRカメラ表示エリア（青枠内の7桁数字を自動認識） -->
       <div id="ocr-wrap" style="display:none;margin-top:10px;">
         <div style="position:relative;width:100%;">
           <video id="ocr-video" autoplay playsinline muted style="width:100%;border-radius:10px;background:#000;"></video>
-          <!-- 青い認識ガイド枠（この枠内をOCR処理する） -->
           <div id="ocr-guide" style="position:absolute;top:50%;left:37.5%;right:37.5%;transform:translateY(-50%);height:100px;border:2px solid #185FA5;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,0.4);pointer-events:none;"></div>
         </div>
         <p style="font-size:12px;color:#888;text-align:center;margin-top:6px;">青い枠内に7桁の数字を合わせると自動で読み取ります</p>
@@ -329,11 +224,10 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <button onclick="stopOCR()" style="flex:1;padding:12px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#e53;font-size:14px;cursor:pointer;">停止</button>
         </div>
         <div id="ocr-result" style="margin-top:8px;font-size:13px;color:#555;text-align:center;min-height:20px;"></div>
-        <canvas id="ocr-canvas" style="display:none;"></canvas><!-- OCR処理用の非表示キャンバス -->
+        <canvas id="ocr-canvas" style="display:none;"></canvas>
       </div>
     </div>
 
-    <!-- 商品マスター表示エリア（JANコード検索後に表示される） -->
     <div id="master-result">
       <div class="section">
         <h3>商品情報（マスターより自動呼び出し）</h3>
@@ -346,8 +240,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           </div>
         </div>
       </div>
-
-      <!-- 登録入力フォーム -->
       <div class="section">
         <h3>入力項目</h3>
         <div class="field">
@@ -359,7 +251,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <input type="text" id="reg-expiry" placeholder="yyyymmdd" inputmode="numeric" maxlength="8" />
           <div class="hint">8桁の数字で入力（例：20260410）</div>
         </div>
-        <!-- 賞味期限入力後に自動計算される残日数（readonlyで編集不可） -->
         <div class="field">
           <label>残日数（自動計算）</label>
           <input type="text" id="reg-days" readonly placeholder="賞味期限を入力すると自動計算" />
@@ -372,7 +263,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <label>売り切り方法</label>
           <select id="reg-selloff-method">
             <option value="">選択してください</option>
-            <option value="売り切ってない">売り切ってない</option>
             <option value="オフシール">オフシール</option>
             <option value="ESL">ESL</option>
           </select>
@@ -381,25 +271,20 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <label>ぶっとおし</label>
           <select id="reg-buttoshi">
             <option value="">選択してください</option>
-            <option value="作業時（登録日当日）は値引きがないので未登録">作業時（登録日当日）は値引きがないので未登録</option>
             <option value="登録時ぶっとおしではない">登録時ぶっとおしではない</option>
             <option value="登録時ぶっとおし">登録時ぶっとおし</option>
           </select>
         </div>
-        <!-- 値下げ処理場所：プリセット選択 or フリーワード入力 -->
         <div class="field">
           <label>値下げ処理商品の場所</label>
           <select id="reg-discount-type" onchange="handleRegisterDiscountTypeChange()">
             <option value="">選択してください</option>
-            <option value="作業時（登録日当日）は値引きがないので未登録">作業時（登録日当日）は値引きがないので未登録</option>
             <option value="売り切りワゴン">売り切りワゴン</option>
             <option value="定番棚のまま">定番棚のまま</option>
             <option value="custom">フリーワード入力</option>
           </select>
-          <!-- フリーワード入力欄：「フリーワード入力」選択時だけ表示される -->
           <input type="text" id="reg-discount-custom" placeholder="場所を入力" style="display:none;margin-top:8px;" />
         </div>
-        <!-- 担当者・登録日はログイン情報から自動入力（編集不可） -->
         <div class="field">
           <label>担当者</label>
           <input type="text" id="reg-staff" readonly />
@@ -409,8 +294,6 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
           <input type="text" id="reg-date" readonly />
         </div>
       </div>
-
-      <!-- 登録アクションボタン -->
       <div class="section">
         <div class="reg-actions">
           <button class="btn-clear" onclick="clearForm()">クリア</button>
@@ -418,99 +301,70 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
         </div>
       </div>
     </div>
-  </div><!-- /panel-register -->
+  </div>
 
-  <!-- ===== 一覧・確認パネル ===== -->
   <div id="panel-list">
     <div style="padding:12px 16px 4px;font-size:14px;font-weight:600;color:#555;background:#fff;border-top:3px solid #185FA5;border-bottom:1px solid #eee;">一覧・確認</div>
-
-    <!-- サマリー統計（4マスのカード） -->
     <div class="stats">
       <div class="stat"><div class="stat-label">総商品数</div><div class="stat-value" id="s-total">0</div></div>
       <div class="stat"><div class="stat-label">期限切れ</div><div class="stat-value red" id="s-expired">0</div></div>
       <div class="stat"><div class="stat-label">警告圏内</div><div class="stat-value amber" id="s-warn">0</div></div>
       <div class="stat"><div class="stat-label">確認済み</div><div class="stat-value green" id="s-done">0</div>
-        <!-- 確認済み進捗バー（幅をJSで動的に変える） -->
         <div class="progress-bar"><div class="progress-fill" id="s-prog" style="width:0%"></div></div>
       </div>
     </div>
-
-    <!-- フィルターバー（各種絞り込み + 検索） -->
     <div class="filter-bar">
-      <!-- ステータス絞り込み（すべて・期限切れ・警告圏内など） -->
       <label>絞込：</label>
       <select id="filter-status" onchange="renderList()">
         <option value="all">すべて</option>
         <option value="expired">期限切れ</option>
-        <option value="warn" selected>警告圏内</option><!-- デフォルトは警告圏内 -->
+        <option value="warn" selected>警告圏内</option>
         <option value="ok">余裕あり</option>
         <option value="high_loss">⚠️10個以上ロス実績</option>
         <option value="stale">🔴7日以上滞留</option>
       </select>
-
-      <!-- 現役/履歴の切り替え（current=現役のみ / archive=済のみ / all=両方） -->
       <label>履歴：</label>
       <select id="filter-archive" onchange="loadList()">
         <option value="current">現役のみ</option>
-        <option value="archive">履歴のみ</option>
-        <option value="all">すべて</option>
+        <option value="archive">履歴を含む</option>
       </select>
-
-      <!-- 通路・部門（店長のみ）・カテゴリの絞り込み -->
       <label>通路：</label>
       <select id="filter-aisle" onchange="renderList()"><option value="all">すべて</option></select>
-      <!-- 部門絞り込みは店長ログイン時のみ表示 -->
       <span id="dept-filter-wrap" style="display:none;align-items:center;gap:8px;"><label>部門：</label><select id="filter-dept" onchange="renderList()"><option value="all">すべて</option></select></span>
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
-
-      <!-- 賞味期限切れまでの日数フィルター
-           スライダーと数値入力ボックスが連動する。デフォルト365日（実質全件表示）
-           期限切れ（マイナス）は常に表示。警告圏内・余裕ありはこの日数以内のみ表示 -->
-      <label>賞味期限切れまで</label>
-      <input type="range" id="alert-days-slider" min="0" max="365" value="365" oninput="syncAlertDays('slider')" style="width:100px;accent-color:#185FA5;cursor:pointer;" />
-      <input type="number" id="alert-days-num" min="0" max="365" value="365" oninput="syncAlertDays('num')" style="width:52px;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;" />
+      <label>アラート：</label>
+      <button onclick="changeAlertDays(-1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">－</button>
+      <span id="alert-days-disp" style="font-size:13px;font-weight:500;min-width:24px;text-align:center;display:inline-block;">7</span>
+      <button onclick="changeAlertDays(1)" style="padding:4px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:16px;cursor:pointer;">＋</button>
       <label>日以内</label>
-
-      <!-- 商品検索ボックス
-           2文字以上：商品名・通路・カテゴリを検索
-           4文字以上：自社コード・JANコードも検索対象に追加
-           検索中は他フィルターを無視（店長は全件・他部門は自部門から検索） -->
-      <input type="search" id="filter-search" placeholder="🔍 商品名・コード・通路・カテゴリ" oninput="renderList()" style="font-size:13px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;min-width:200px;" />
     </div>
-
-    <!-- 列表示モード切り替え（デフォルト固定 or カスタム） -->
     <div style="padding:6px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px;">
       <span style="font-size:12px;color:#888;">列の表示：</span>
       <button id="mode-default" onclick="setColMode('default')" style="font-size:12px;color:#185FA5;font-weight:700;background:none;border:none;cursor:pointer;padding:2px 0;">デフォルト</button>
       <button id="mode-custom" onclick="setColMode('custom')" style="font-size:12px;color:#888;font-weight:400;background:none;border:none;cursor:pointer;padding:2px 0;">カスタム</button>
     </div>
-
-    <!-- 列トグルバー（カスタムモード時のみ表示）
-         各トグルのラベル色＝トグルON時の色（--toggle-colorで設定） -->
     <div class="col-toggle-bar" id="col-toggle-bar" style="display:none;">
       <span>列の表示：</span>
-      <div class="toggle-item" style="--toggle-color:#546e7a"><label class="toggle"><input type="checkbox" data-col="1" onchange="toggleCol(1,this.checked)"><span class="toggle-slider"></span></label><label style="color:#546e7a">部門</label></div>
-      <div class="toggle-item" style="--toggle-color:#00796b"><label class="toggle"><input type="checkbox" data-col="2" checked onchange="toggleCol(2,this.checked)"><span class="toggle-slider"></span></label><label style="color:#00796b">通路</label></div>
-      <div class="toggle-item" style="--toggle-color:#f57c00"><label class="toggle"><input type="checkbox" data-col="3" onchange="toggleCol(3,this.checked)"><span class="toggle-slider"></span></label><label style="color:#f57c00">JANコード</label></div>
-      <div class="toggle-item" style="--toggle-color:#303f9f"><label class="toggle"><input type="checkbox" data-col="4" checked onchange="toggleCol(4,this.checked)"><span class="toggle-slider"></span></label><label style="color:#303f9f">自社コード</label></div>
-      <div class="toggle-item" style="--toggle-color:#689f38"><label class="toggle"><input type="checkbox" data-col="5" checked onchange="toggleCol(5,this.checked)"><span class="toggle-slider"></span></label><label style="color:#689f38">商品名</label></div>
-      <div class="toggle-item" style="--toggle-color:#0288d1"><label class="toggle"><input type="checkbox" data-col="6" onchange="toggleCol(6,this.checked)"><span class="toggle-slider"></span></label><label style="color:#0288d1">カテゴリ</label></div>
-      <div class="toggle-item" style="--toggle-color:#7b1fa2"><label class="toggle"><input type="checkbox" data-col="7" checked onchange="toggleCol(7,this.checked)"><span class="toggle-slider"></span></label><label style="color:#7b1fa2">最古賞味期限</label></div>
-      <div class="toggle-item" style="--toggle-color:#a1887f"><label class="toggle"><input type="checkbox" data-col="8" checked onchange="toggleCol(8,this.checked)"><span class="toggle-slider"></span></label><label style="color:#a1887f">販売許容期限切れ個数</label></div>
-      <div class="toggle-item" style="--toggle-color:#c2185b"><label class="toggle"><input type="checkbox" data-col="9" onchange="toggleCol(9,this.checked)"><span class="toggle-slider"></span></label><label style="color:#c2185b">値引き対象日</label></div>
-      <div class="toggle-item" style="--toggle-color:#ff8f00"><label class="toggle"><input type="checkbox" data-col="10" checked onchange="toggleCol(10,this.checked)"><span class="toggle-slider"></span></label><label style="color:#ff8f00">賞味期限切れまでの日数</label></div>
-      <div class="toggle-item" style="--toggle-color:#1976d2"><label class="toggle"><input type="checkbox" data-col="11" checked onchange="toggleCol(11,this.checked)"><span class="toggle-slider"></span></label><label style="color:#1976d2">値下処理商品の場所</label></div>
-      <div class="toggle-item" style="--toggle-color:#78909c"><label class="toggle"><input type="checkbox" data-col="12" onchange="toggleCol(12,this.checked)"><span class="toggle-slider"></span></label><label style="color:#78909c">担当者</label></div>
-      <div class="toggle-item" style="--toggle-color:#4527a0"><label class="toggle"><input type="checkbox" data-col="13" onchange="toggleCol(13,this.checked)"><span class="toggle-slider"></span></label><label style="color:#4527a0">登録日</label></div>
-      <div class="toggle-item" style="--toggle-color:#2e7d32"><label class="toggle"><input type="checkbox" data-col="17" onchange="toggleCol(17,this.checked)"><span class="toggle-slider"></span></label><label style="color:#2e7d32">販売許容期限</label></div>
-      <div class="toggle-item" style="--toggle-color:#f9a825"><label class="toggle"><input type="checkbox" data-col="18" onchange="toggleCol(18,this.checked)"><span class="toggle-slider"></span></label><label style="color:#f9a825">⚠️10個以上ロス実績</label></div>
-      <div class="toggle-item" style="--toggle-color:#757575"><label class="toggle"><input type="checkbox" data-col="14" onchange="toggleCol(14,this.checked)"><span class="toggle-slider"></span></label><label style="color:#757575">ESL番号</label></div>
-      <div class="toggle-item" style="--toggle-color:#0097a7"><label class="toggle"><input type="checkbox" data-col="15" onchange="toggleCol(15,this.checked)"><span class="toggle-slider"></span></label><label style="color:#0097a7">売り切り方法</label></div>
-      <div class="toggle-item" style="--toggle-color:#ab47bc"><label class="toggle"><input type="checkbox" data-col="16" onchange="toggleCol(16,this.checked)"><span class="toggle-slider"></span></label><label style="color:#ab47bc">ぶっとおし</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="1" onchange="toggleCol(1,this.checked)"><span class="toggle-slider"></span></label><label>部門</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="2" checked onchange="toggleCol(2,this.checked)"><span class="toggle-slider"></span></label><label>通路</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="3" onchange="toggleCol(3,this.checked)"><span class="toggle-slider"></span></label><label>JANコード</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="4" checked onchange="toggleCol(4,this.checked)"><span class="toggle-slider"></span></label><label>自社コード</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="5" checked onchange="toggleCol(5,this.checked)"><span class="toggle-slider"></span></label><label>商品名</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="6" onchange="toggleCol(6,this.checked)"><span class="toggle-slider"></span></label><label>カテゴリ</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="7" checked onchange="toggleCol(7,this.checked)"><span class="toggle-slider"></span></label><label>最古賞味期限</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="8" checked onchange="toggleCol(8,this.checked)"><span class="toggle-slider"></span></label><label>販売許容期限切れ個数</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="9" onchange="toggleCol(9,this.checked)"><span class="toggle-slider"></span></label><label>値引き対象日</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="10" checked onchange="toggleCol(10,this.checked)"><span class="toggle-slider"></span></label><label>賞味期限切れまでの日数</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="11" checked onchange="toggleCol(11,this.checked)"><span class="toggle-slider"></span></label><label>値下処理商品の場所</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="12" onchange="toggleCol(12,this.checked)"><span class="toggle-slider"></span></label><label>担当者</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="13" onchange="toggleCol(13,this.checked)"><span class="toggle-slider"></span></label><label>登録日</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="17" onchange="toggleCol(17,this.checked)"><span class="toggle-slider"></span></label><label>販売許容期限</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="18" onchange="toggleCol(18,this.checked)"><span class="toggle-slider"></span></label><label>⚠️10個以上ロス実績</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="14" onchange="toggleCol(14,this.checked)"><span class="toggle-slider"></span></label><label>ESL番号</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="15" onchange="toggleCol(15,this.checked)"><span class="toggle-slider"></span></label><label>売り切り方法</label></div>
+      <div class="toggle-item"><label class="toggle"><input type="checkbox" data-col="16" onchange="toggleCol(16,this.checked)"><span class="toggle-slider"></span></label><label>ぶっとおし</label></div>
     </div>
-
-    <!-- データテーブル本体（tbody はJSで動的に生成） -->
     <div class="table-wrap">
       <table>
         <thead>
@@ -537,98 +391,57 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
             <th data-col="del" style="width:36px;min-width:36px;">削除</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody><!-- ここにJSがデータ行を挿入する -->
+        <tbody id="tbody"></tbody>
       </table>
     </div>
-  </div><!-- /panel-list -->
-</div><!-- /main-screen -->
+  </div>
+</div>
 
 <script>
-// ============================================================
-// Supabase 接続設定
-// SUPABASE_KEY はSupabaseダッシュボードの「API」から取得する
-// ※キーは ' で始まり ' で終わる。途中に ' があるとエラーになる
-// ============================================================
 const SUPABASE_URL = 'https://hloolqqmdvqfuaoydkmq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_VrF7QA1ds6qoc1DS6l9xJQ_XcPp8RPL';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ============================================================
-// 日付・ステータス計算ユーティリティ
-// ============================================================
-
-// 今日の日付（時刻をゼロにして「日付だけ」で比較できるようにする）
 const today = new Date(); today.setHours(0,0,0,0);
-
-// 値下げ処理場所のプリセット選択肢（選択肢に含まれていないものはフリーワード扱い）
-const DISCOUNT_PRESETS = ['作業時（登録日当日）は値引きがないので未登録','売り切りワゴン','定番棚のまま'];
-
-// Dateオブジェクトを YYYY-MM-DD 形式の文字列に変換する
+const DISCOUNT_PRESETS = ['売り切りワゴン','定番棚のまま'];
 function fmt(d){return d instanceof Date ? d.toISOString().slice(0,10) : d;}
-
-// 値引き対象日を計算する（今日 + チェック間隔日数 + 販売許容期限日数）
-// checkInterval: ログイン時に設定した「期限チェック間隔」
-// sellingTolerance: 商品マスターに設定された「販売許容期限」（日数）
 function calcMarkdownTarget(expiry, sellingTolerance){
   const targetDays = checkInterval + (sellingTolerance || 0);
   const targetDate = new Date(today);
   targetDate.setDate(targetDate.getDate() + targetDays);
   return fmt(targetDate);
 }
-
-// 商品が値引き対象日に達しているかを判定（true=値引き対象）
 function isMarkdownTarget(expiry, sellingTolerance){
   const expiryDate = new Date(expiry);
   expiryDate.setHours(0,0,0,0);
   const targetDays = checkInterval + (sellingTolerance || 0);
   const targetDate = new Date(today);
   targetDate.setDate(targetDate.getDate() + targetDays);
-  return expiryDate <= targetDate;// 賞味期限が対象日以前なら値引き対象
+  return expiryDate <= targetDate;
 }
-
-// 賞味期限まで何日残っているかを計算（マイナスは期限切れ）
 function daysLeft(e){const d=new Date(e);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
-
-// 商品のステータスを判定する
-// 戻り値: 'expired'（期限切れ）/ 'warn'（警告圏内）/ 'ok'（余裕あり）
-// 警告圏内の条件：値引き対象日に達した商品（isMarkdownTarget）のみ
-function statusOf(days,ad,expiry,sellingTolerance){
-  if(days<0)return'expired';// 賞味期限が今日より前 → 期限切れ
-  if(expiry&&isMarkdownTarget(expiry,sellingTolerance))return'warn';// 値引き対象日到達 → 警告圏内
-  return'ok';// それ以外 → 余裕あり
-}
-
-// 今日の日付を JST（日本時間）で YYYY-MM-DD 形式で返す
+/* ▼▼▼ v1.1 修正: 値引き対象(isMarkdownTarget)も警告圏内に含める ▼▼▼ */
+function statusOf(days,ad,expiry,sellingTolerance){if(days<0)return'expired';if(days<=ad)return'warn';if(expiry&&isMarkdownTarget(expiry,sellingTolerance))return'warn';return'ok';}
+/* ▲▲▲ v1.1 修正 ▲▲▲ */
 function todayStr(){const jst=new Date(today.getTime()+9*60*60*1000);return jst.toISOString().slice(0,10);}
 
-// ============================================================
-// 値下げ処理場所の選択肢管理（プリセット or フリーワード）
-// ============================================================
-
-// 保存されている値がプリセットかフリーワードかを判定して返す
 function getDiscountState(value=''){
   const trimmed=(value||'').trim();
   if(!trimmed)return{type:'',custom:''};
   if(DISCOUNT_PRESETS.includes(trimmed))return{type:trimmed,custom:''};
-  return{type:'custom',custom:trimmed};// プリセットにない値はフリーワード
+  return{type:'custom',custom:trimmed};
 }
-
-// 登録フォームの値下げ場所セレクトの現在値を取得
 function getRegisterDiscountValue(){
   const type=document.getElementById('reg-discount-type').value;
   if(type==='custom')return document.getElementById('reg-discount-custom').value.trim();
   return type;
 }
-
-// 登録フォームの値下げ場所セレクトに値をセット
 function setRegisterDiscountValue(value=''){
   const state=getDiscountState(value);
   document.getElementById('reg-discount-type').value=state.type;
   document.getElementById('reg-discount-custom').value=state.custom;
   handleRegisterDiscountTypeChange();
 }
-
-// 「フリーワード入力」選択時だけフリーワード入力欄を表示する
 function handleRegisterDiscountTypeChange(){
   const type=document.getElementById('reg-discount-type').value;
   const custom=document.getElementById('reg-discount-custom');
@@ -636,8 +449,6 @@ function handleRegisterDiscountTypeChange(){
   custom.style.display=showCustom?'block':'none';
   if(!showCustom)custom.value='';
 }
-
-// 一覧行の値下げ場所セレクトのHTML option タグを生成する
 function buildDiscountOptions(selectedType=''){
   return[
     `<option value="" ${selectedType===''?'selected':''}>選択してください</option>`,
@@ -645,92 +456,50 @@ function buildDiscountOptions(selectedType=''){
     `<option value="custom" ${selectedType==='custom'?'selected':''}>フリーワード入力</option>`
   ].join('');
 }
-
-// HTMLの特殊文字をエスケープ（XSS対策：悪意ある入力をそのままHTMLに埋め込まないようにする）
 function escapeAttr(value=''){
   return String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ============================================================
-// グローバル変数（アプリ全体で使い回す状態管理）
-// ============================================================
-
-// 通路番号の選択肢を生成（1A〜16D の64通路）
 const AISLES=[];
 for(let i=1;i<=16;i++)['A','B','C','D'].forEach(l=>AISLES.push(`${i}${l}`));
 
-let currentStaff='';          // ログイン中の担当者名
-let currentDept='';           // ログイン中の部門
-let checkInterval=7;          // 期限チェック間隔（値引き対象日の計算に使う）
-let filterLowTolerance=true;  // 販売許容期限フィルターON/OFF
-let filterLowToleranceThreshold=7; // 販売許容期限フィルターのしきい値（日数）
-let listData=[];              // Supabaseから取得した全データを保持する配列
-let sortKey='expiry';         // 現在のソート列
-let sortDir=1;                // ソート方向（1=昇順、-1=降順）
-let currentMaster=null;       // JAN検索で取得した商品マスター情報
-let cameraActive=false;       // バーコードカメラが起動中かどうか
+let currentStaff='',currentDept='',checkInterval=7,filterLowTolerance=true,filterLowToleranceThreshold=7;
+let listData=[];
+let sortKey='expiry',sortDir=1;
+let currentMaster=null;
+let cameraActive=false;
 
-// ============================================================
-// UI ユーティリティ
-// ============================================================
-
-// ローディング画面の表示/非表示を切り替える（v=true:表示、v=false:非表示）
 function showLoading(v){document.getElementById('loading').style.display=v?'flex':'none';}
-
-// トーストメッセージを表示する（duration ミリ秒後に自動で消える）
 function toast(msg,duration=2500){
   const el=document.getElementById('toast');
   el.textContent=msg;el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),duration);
 }
 
-// ============================================================
-// ログイン処理
-// ============================================================
-
 function doLogin(){
   const n=document.getElementById('login-name').value.trim();
   const d=document.getElementById('login-dept').value;
-  // 入力チェック：担当者名・部門が未入力ならトーストで警告
   if(!n){toast('担当者名を入力してください');return;}
   if(!d){toast('部門を選択してください');return;}
-
-  // ログイン情報をグローバル変数に保存
-  currentStaff=n;
-  currentDept=d;
-  checkInterval=parseInt(document.getElementById('login-interval').value)||7;
-  filterLowTolerance=document.getElementById('login-filter-low-tolerance').checked;
-  filterLowToleranceThreshold=parseInt(document.getElementById('login-tolerance-threshold').value)||7;
-
-  // 画面切り替え（ログイン画面を隠してメイン画面を表示）
+  currentStaff=n;currentDept=d;checkInterval=parseInt(document.getElementById('login-interval').value)||7;filterLowTolerance=document.getElementById('login-filter-low-tolerance').checked;filterLowToleranceThreshold=parseInt(document.getElementById('login-tolerance-threshold').value)||7;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-screen').style.display='block';
-
-  // ヘッダーバッジに担当者情報を表示
   document.getElementById('staff-disp').textContent='担当：'+n;
   document.getElementById('dept-disp').textContent=d;
   document.getElementById('interval-disp').textContent='チェック間隔:'+checkInterval+'日';
   document.getElementById('tolerance-filter-disp').textContent=filterLowTolerance?'許容期限'+filterLowToleranceThreshold+'以下:除外':'許容期限'+filterLowToleranceThreshold+'以下:含む';
-
-  // 登録フォームに担当者名・今日の日付を自動セット
   document.getElementById('reg-staff').value=n;
   document.getElementById('reg-date').value=todayStr();
-
-  buildAisleSelect();// 通路セレクトボックスを構築
-  loadList();        // Supabaseからデータを取得して一覧を表示
+  buildAisleSelect();loadList();
 }
 
-// 通路番号セレクトボックスを動的に生成（1A〜16Dの64通路）
 function buildAisleSelect(){
   const sel=document.getElementById('reg-aisle');
   sel.innerHTML='<option value="">選択してください</option>';
   AISLES.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
 }
 
-// ============================================================
-// ESLバーコードスキャン（ESL番号入力フォーム用）
-// ※現在は登録フォームのESL入力欄から直接入力する運用に変更済み
-// ============================================================
+// ===== ESL SCAN =====
 async function scanESL(){
   if(!('BarcodeDetector' in window)){toast('お使いのブラウザはスキャンに対応していません');return;}
   const detector=new BarcodeDetector({formats:['ean_13','ean_8','code_39','code_128','itf','codabar','upc_a','upc_e']});
@@ -755,30 +524,21 @@ async function scanESL(){
           return;
         }
       }catch(e){}
-      setTimeout(scan,200);// 200ms後に再スキャン
+      setTimeout(scan,200);
     };
     video.addEventListener('play',scan,{once:true});
   }catch(e){toast('カメラを起動できませんでした');}
 }
 
-// ============================================================
-// バーコードカメラ（JANコード・自社コード読み取り）
-// ブラウザが BarcodeDetector に対応していれば それを使い、
-// 非対応なら予備の Quagga ライブラリに切り替える
-// ============================================================
-let barcodeDetectorActive=false;// BarcodeDetectorが動作中かどうか
-let barcodeDetectorTimer=null;  // スキャンの繰り返しタイマー
-let barcodeStream=null;         // カメラのストリームオブジェクト
+// ===== CAMERA =====
+let barcodeDetectorActive=false,barcodeDetectorTimer=null,barcodeStream=null;
 
-// バーコードボタンをタップ→カメラON/OFFのトグル
 async function toggleCamera(){
   if(cameraActive){stopCamera();return;}
   document.getElementById('camera-wrap').style.display='block';
-  if('BarcodeDetector' in window){await startBarcodeDetector();}// モダンブラウザ
-  else{await startQuagga();}// 非対応ブラウザ（予備）
+  if('BarcodeDetector' in window){await startBarcodeDetector();}else{await startQuagga();}
 }
 
-// BarcodeDetector API でカメラを起動してスキャンを開始する
 async function startBarcodeDetector(){
   try{
     const detector=new BarcodeDetector({formats:['ean_13','ean_8','code_39','code_128','itf','codabar','upc_a','upc_e']});
@@ -791,14 +551,12 @@ async function startBarcodeDetector(){
       document.getElementById('camera-video').appendChild(video);
     }
     video.srcObject=stream;cameraActive=true;barcodeDetectorActive=true;
-    // 200msごとにスキャンを繰り返す
     const scan=async()=>{
       if(!barcodeDetectorActive)return;
       try{
         const results=await detector.detect(video);
         if(results.length>0){
           let code=results[0].rawValue;
-          // コードの先頭/末尾にA〜Dが含まれる場合は除去（自社コード形式の補正）
           code=code.replace(/^[A-Da-d]/,'').replace(/[A-Da-d]$/,'');
           document.getElementById('jan-input').value=code;stopCamera();lookupJAN();return;
         }
@@ -809,7 +567,6 @@ async function startBarcodeDetector(){
   }catch(e){toast('カメラを起動できませんでした');document.getElementById('camera-wrap').style.display='none';}
 }
 
-// 予備: Quagga ライブラリでバーコード読み取り（BarcodeDetector非対応ブラウザ向け）
 async function startQuagga(){
   try{await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}
   catch(e){toast('カメラの許可が必要です');document.getElementById('camera-wrap').style.display='none';return;}
@@ -826,7 +583,6 @@ async function startQuagga(){
   });
 }
 
-// カメラを停止してエリアを非表示にする
 function stopCamera(){
   if(barcodeDetectorActive){
     barcodeDetectorActive=false;
@@ -837,28 +593,22 @@ function stopCamera(){
   cameraActive=false;document.getElementById('camera-wrap').style.display='none';
 }
 
-// ============================================================
-// 棚札OCR（Tesseract.js で7桁コードを画像認識）
-// ============================================================
-let ocrStream=null;     // OCRカメラのストリーム
-let ocrAutoTimer=null;  // 800msごとに自動キャプチャするタイマー
+// ===== OCR =====
+let ocrStream=null,ocrAutoTimer=null;
 
-// 棚札OCRボタンをタップ→カメラON/OFFのトグル
 async function toggleOCR(){
   if(ocrStream){stopOCR();return;}
   document.getElementById('ocr-wrap').style.display='block';
-  if(cameraActive)stopCamera();// バーコードカメラが起動中なら先に停止
+  if(cameraActive)stopCamera();
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
     ocrStream=stream;
     const video=document.getElementById('ocr-video');
     video.srcObject=stream;
-    // 再生が始まったら800msごとに自動キャプチャ開始
     video.addEventListener('play',()=>{ocrAutoTimer=setInterval(captureOCR,800);},{once:true});
   }catch(e){toast('カメラを起動できませんでした');document.getElementById('ocr-wrap').style.display='none';}
 }
 
-// OCRカメラを停止する
 function stopOCR(){
   if(ocrAutoTimer){clearInterval(ocrAutoTimer);ocrAutoTimer=null;}
   if(ocrStream){ocrStream.getTracks().forEach(t=>t.stop());ocrStream=null;}
@@ -866,34 +616,23 @@ function stopOCR(){
   document.getElementById('ocr-result').textContent='';
 }
 
-// 1回分のOCRキャプチャ処理
-// 画面中央の青枠部分だけを切り取り → 白黒2値化 → Tesseractで数字認識
 async function captureOCR(){
   const video=document.getElementById('ocr-video');
   const canvas=document.getElementById('ocr-canvas');
   const resultEl=document.getElementById('ocr-result');
   resultEl.textContent='読み取り中...';
-
-  // 青枠の位置に合わせてカメラ映像の中央部分を切り取る
   const vw=video.videoWidth,vh=video.videoHeight;
   const cropX=Math.floor(vw*0.375),cropW=Math.floor(vw*0.25),cropH=Math.floor(vh*0.25),cropY=Math.floor(vh*0.5-cropH/2);
-
-  // 3倍に拡大して認識精度を上げる
   const scale=3;canvas.width=cropW*scale;canvas.height=cropH*scale;
   const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
   ctx.drawImage(video,cropX,cropY,cropW,cropH,0,0,canvas.width,canvas.height);
-
-  // グレースケール変換 → しきい値140で白黒2値化（OCR精度向上のため）
   const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);const d=imgData.data;
   for(let i=0;i<d.length;i+=4){const gray=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];const val=gray>140?255:0;d[i]=d[i+1]=d[i+2]=val;}
   ctx.putImageData(imgData,0,0);
-
   try{
-    // Tesseract.js で数字のみ認識（tessedit_char_whitelist で数字に絞る）
     const result=await Tesseract.recognize(canvas,'eng',{logger:()=>{},tessedit_char_whitelist:'0123456789 ',tessedit_pageseg_mode:'6'});
-    const matches=result.data.text.match(/\d{6,8}/g);// 6〜8桁の数字を検索
+    const matches=result.data.text.match(/\d{6,8}/g);
     if(matches){
-      // 7桁を優先、なければ最初にマッチした数字を使う
       const code=matches.find(m=>m.length===7)||matches[0];
       resultEl.textContent='読み取り成功：'+code;
       document.getElementById('jan-input').value=code;stopOCR();lookupJAN();
@@ -901,28 +640,21 @@ async function captureOCR(){
   }catch(e){resultEl.textContent='認識中...';}
 }
 
-// ============================================================
-// JAN/自社コード検索（Supabase の products テーブルを参照）
-// ============================================================
+// ===== JAN LOOKUP =====
 async function lookupJAN(){
   let code=document.getElementById('jan-input').value.trim();
   if(!code){toast('JANコードを入力してください');return;}
   showLoading(true);
-  // まずJANコードで検索、見つからなければ自社コードで再検索
   let {data,error}=await sb.from('products').select('*').eq('jan',code).single();
   if(error||!data){const res=await sb.from('products').select('*').eq('own_code',code).single();data=res.data;error=res.error;}
   showLoading(false);
   if(error||!data){toast('商品マスターに存在しません');return;}
-
-  // 商品マスター情報をグローバル変数に保存して画面に表示
   currentMaster=data;
   document.getElementById('m-name').textContent=data.name;
   document.getElementById('m-cat').textContent=data.category;
   document.getElementById('m-own').textContent=data.own_code;
   document.getElementById('m-jan').textContent=data.jan;
   document.getElementById('master-result').style.display='block';
-
-  // 通路が選択済みなら既存の登録データを引いてフォームに自動入力
   const aisle=document.getElementById('reg-aisle').value;
   if(aisle){
     const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',data.jan).eq('aisle',aisle).single();
@@ -937,9 +669,8 @@ async function lookupJAN(){
   toast('商品情報を読み込みました');
 }
 
-// 賞味期限入力欄の値から残日数を自動計算してフォームに表示する
 function updateDays(v){
-  const val=(v||document.getElementById('reg-expiry').value).replace(/\D/g,'');// 数字以外を除去
+  const val=(v||document.getElementById('reg-expiry').value).replace(/\D/g,'');
   if(val.length===8){
     const dt=new Date(`${val.slice(0,4)}-${val.slice(4,6)}-${val.slice(6,8)}`);
     dt.setHours(0,0,0,0);
@@ -948,96 +679,74 @@ function updateDays(v){
   }else{document.getElementById('reg-days').value='';}
 }
 
-// ページ読み込み完了後の初期化処理
 document.addEventListener('DOMContentLoaded',()=>{
-  setColMode('default');// 列表示をデフォルトモードに設定
+  setColMode('default');
   setRegisterDiscountValue('');
   document.getElementById('reg-selloff-method').value='';
   document.getElementById('reg-buttoshi').value='';
-  // 賞味期限入力欄への入力イベントで残日数を自動更新
   const ei=document.getElementById('reg-expiry');
   if(ei)ei.addEventListener('input',()=>updateDays());
-  // JANコード入力欄でEnterキーを押したら検索実行
   const ji=document.getElementById('jan-input');
   if(ji)ji.addEventListener('keydown',e=>{if(e.key==='Enter')lookupJAN();});
 });
 
-// ============================================================
-// 商品登録処理
-// ============================================================
-let pendingRegister=null;// 登録確認ダイアログの返答待ち中のデータを一時保存
+// ===== REGISTER =====
+let pendingRegister=null;
 
 async function registerItem(){
   if(!currentMaster){toast('JANコードを読み込んでください');return;}
-
-  // フォームの値を取得
   const aisle=document.getElementById('reg-aisle').value;
   const expiryRaw=document.getElementById('reg-expiry').value.replace(/\D/g,'');
   const qtyRaw=document.getElementById('reg-expiredQty').value.trim();
   const qty=parseInt(qtyRaw,10);
   const discount=getRegisterDiscountValue();
-
-  // 入力チェック
   if(!aisle){toast('通路番号を選択してください');return;}
   if(expiryRaw.length!==8){toast('賞味期限を8桁で入力してください\n例：20260410');return;}
-  if(qtyRaw===''||Number.isNaN(qty)||qty<0){toast('販売許容期限切れ個数を入力してください（0個の場合も0を入力）');return;}
-  if(!discount){toast('値下げ処理商品の場所を選択してください');return;}
-
+  if(qtyRaw===''||Number.isNaN(qty)||qty<0){toast('期限切れ個数を入力してください');return;}
+  if(!discount){toast('値下げ処理商品の場所を入力してください');return;}
   const selloffMethod=document.getElementById('reg-selloff-method').value;
   const buttoshi=document.getElementById('reg-buttoshi').value;
   const eslCode='';
   if(!selloffMethod){toast('売り切り方法を選択してください');return;}
   if(!buttoshi){toast('ぶっとおしを選択してください');return;}
-
-  // 賞味期限を YYYYMMDD → YYYY-MM-DD 形式に変換（Supabase の date 型に合わせる）
   const ep=expiryRaw;
   const expiryFmt=`${ep.slice(0,4)}-${ep.slice(4,6)}-${ep.slice(6,8)}`;
 
-  // 同じ商品が既に登録済みかチェック
   const existing=listData.filter(r=>r.jan===currentMaster.jan&&!r.is_archive);
   if(existing.length>0){
     const sameAisleExpiry=existing.find(r=>r.aisle===aisle&&r.expiry===expiryFmt);
     if(sameAisleExpiry){
-      // 同じ通路・同じ期限 → 上書き確認ダイアログ
       pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode,mode:'overwrite',overwriteId:sameAisleExpiry.id};
       document.getElementById('dialog-title').textContent='同じ登録があります';
       document.getElementById('dialog-msg').textContent='同じ通路で同じ賞味期限の登録があります。上書きになりますが続行しますか？';
       document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
       document.getElementById('dialog-btn1').textContent='はい（上書き）';
-      document.getElementById('dialog-btn1').onclick=()=>dialogAction(1);
       document.getElementById('dialog-btn2').className='dialog-btn dialog-btn-gray';
       document.getElementById('dialog-btn2').textContent='いいえ（キャンセル）';
-      document.getElementById('dialog-btn2').onclick=()=>dialogAction(2);
       document.getElementById('dialog-cancel').style.display='none';
       document.getElementById('dialog-overlay').classList.add('show');
       return;
     }
-    // 同じ商品が別通路・別期限で登録済み → どうするか確認ダイアログ
     pendingRegister={jan:currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode,mode:'new'};
     document.getElementById('dialog-title').textContent='同じ商品がすでに登録済みです';
     document.getElementById('dialog-msg').textContent=`「${currentMaster.name}」はすでに登録されています。どうしますか？`;
     document.getElementById('dialog-btn1').className='dialog-btn dialog-btn-blue';
     document.getElementById('dialog-btn1').textContent='同じ通路で別の期限で登録する';
-    document.getElementById('dialog-btn1').onclick=()=>dialogAction(1);
     document.getElementById('dialog-btn2').className='dialog-btn dialog-btn-red';
     document.getElementById('dialog-btn2').textContent='異なる通路番号で登録する（複数箇所陳列用）';
-    document.getElementById('dialog-btn2').onclick=()=>dialogAction(2);
     document.getElementById('dialog-cancel').style.display='';
     document.getElementById('dialog-overlay').classList.add('show');
     return;
   }
-  // 既存データなし → そのまま新規登録
   await doRegister(currentMaster.jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode);
 }
 
-// ダイアログを閉じてpendingRegisterをリセット
 function closeDialog(){
   document.getElementById('dialog-overlay').classList.remove('show');
   document.getElementById('dialog-cancel').style.display='';
   pendingRegister=null;
 }
 
-// レコードをアーカイブテーブルに移動する（expiry_records → expiry_archives）
 async function archiveRecord(record){
   const payload={jan:record.jan,aisle:record.aisle,expiry:record.expiry,expired_qty:record.expired_qty||0,discount_location:record.discount_location,staff:record.staff,registered_at:record.registered_at,checked_at:todayStr(),department:record.department,name:record.name,own_code:record.own_code,category:record.category,high_expiry_flag:record.high_expiry_flag||false};
   const {error:archErr}=await sb.from('expiry_archives').insert(payload);
@@ -1046,15 +755,13 @@ async function archiveRecord(record){
   return delErr||null;
 }
 
-// 確認ダイアログのボタン1または2が押されたときの処理
 async function dialogAction(btn){
   if(!pendingRegister)return;
   const{jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode,mode,overwriteId}=pendingRegister;
   closeDialog();
 
   if(mode==='overwrite'){
-    if(btn===2)return;// キャンセル
-    // 上書き：既存レコードをUPDATEする
+    if(btn===2)return;
     showLoading(true);
     const{error}=await sb.from('expiry_records').update({expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).eq('id',overwriteId);
     showLoading(false);
@@ -1065,14 +772,12 @@ async function dialogAction(btn){
 
   if(mode==='new'){
     if(btn===1){
-      // 同じ通路の古いデータをアーカイブしてから新規登録
       const sameAisleRecords=listData.filter(r=>r.jan===jan&&r.aisle===aisle&&!r.is_archive);
       for(const rec of sameAisleRecords){
         const err=await archiveRecord(rec);
         if(err){toast('旧データの退避に失敗しました：'+err.message);return;}
       }
     }
-    // 新規INSERT
     showLoading(true);
     const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
     showLoading(false);
@@ -1082,7 +787,6 @@ async function dialogAction(btn){
   }
 }
 
-// 新規登録を実行する（ダイアログなしで直接登録するパターン）
 async function doRegister(jan,aisle,expiryFmt,qty,discount,selloffMethod,buttoshi,eslCode){
   showLoading(true);
   const{data:inserted,error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10}).select().single();
@@ -1092,7 +796,6 @@ async function doRegister(jan,aisle,expiryFmt,qty,discount,selloffMethod,buttosh
   clearForm();loadList();
 }
 
-// 登録フォームをすべてクリアする
 function clearForm(){
   currentMaster=null;
   document.getElementById('jan-input').value='';
@@ -1106,50 +809,34 @@ function clearForm(){
   document.getElementById('reg-buttoshi').value='';
 }
 
-// ============================================================
-// 一覧データ取得・表示
-// ============================================================
-
-// Supabase からデータを取得して listData に格納し、画面を更新する
+// ===== LIST =====
 async function loadList(){
   showLoading(true);
   const archiveMode=document.getElementById('filter-archive')?.value||'current';
   let current=[],archives=[];
-
-  // 現役データ（expiry_records）の取得
-  // products テーブルとJOINして商品名・カテゴリ等を一緒に取得する
-  if(archiveMode==='current'||archiveMode==='all'){
-    const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, selling_tolerance)').order('expiry',{ascending:true});
-    if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
-    current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance||0,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
-  }
-
-  // 履歴データ（expiry_archives）の取得
-  if(archiveMode==='archive'||archiveMode==='all'){
+  const {data:d1,error:e1}=await sb.from('expiry_records').select('*, products(name, own_code, category, department, selling_tolerance)').order('expiry',{ascending:true});
+  if(e1){showLoading(false);toast('データ取得に失敗しました');return;}
+  current=d1.map(r=>({...r,name:r.products?.name||'—',own_code:r.products?.own_code||'—',category:r.products?.category||'—',department:r.products?.department||'—',selling_tolerance:r.products?.selling_tolerance||0,high_expiry_flag:r.high_expiry_flag||false,days:daysLeft(r.expiry),is_archive:false}));
+  if(archiveMode==='archive'){
     const {data:d2}=await sb.from('expiry_archives').select('*').order('checked_at',{ascending:false});
     if(d2){archives=d2.map(r=>({...r,days:daysLeft(r.expiry),checked:true,is_archive:true,high_expiry_flag:r.high_expiry_flag||false}));}
   }
-
-  listData=[...current,...archives];// 現役と履歴を結合して保持
+  listData=[...current,...archives];
   showLoading(false);
-  populateFilterSelects();// フィルタードロップダウンの選択肢を更新
-  renderList();           // 画面に一覧を描画
+  populateFilterSelects();renderList();
 }
 
-// フィルタードロップダウン（通路・カテゴリ・部門）の選択肢をデータから動的に生成する
 function populateFilterSelects(){
   const aisles=[...new Set(listData.map(d=>d.aisle))].sort((a,b)=>{const n1=parseInt(a),n2=parseInt(b);if(n1!==n2)return n1-n2;return a.slice(-1).localeCompare(b.slice(-1));});
   const cats=[...new Set(listData.map(d=>d.category))].sort();
   const depts=[...new Set(listData.map(d=>d.department).filter(d=>d&&d!=='—'))].sort();
   const as=document.getElementById('filter-aisle'),cs=document.getElementById('filter-cat'),ds=document.getElementById('filter-dept');
-  // 現在の選択値を保持して再セット（再描画後も絞り込みが維持されるように）
   const ca=as.value,cc=cs.value,cd=ds.value;
   as.innerHTML='<option value="all">すべて</option>';cs.innerHTML='<option value="all">すべて</option>';ds.innerHTML='<option value="all">すべて</option>';
   aisles.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;as.appendChild(o);});
   cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);});
   depts.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;ds.appendChild(o);});
   if(ca)as.value=ca;if(cc)cs.value=cc;
-  // 部門絞り込みは店長ログイン時のみ表示する
   const deptFilterWrap=document.getElementById('dept-filter-wrap');
   if(currentDept==='店長'){
     if(deptFilterWrap)deptFilterWrap.style.display='flex';
@@ -1157,33 +844,28 @@ function populateFilterSelects(){
   }else{if(deptFilterWrap)deptFilterWrap.style.display='none';ds.value=currentDept;}
 }
 
-// 賞味期限切れまでの日数に応じてバッジを返す（赤・黄・緑）
+/* ▼▼▼ v1.1 修正: badgeForにexpiry,sellingToleranceを追加 ▼▼▼ */
 function badgeFor(days,ad,expiry,sellingTolerance){
   const s=statusOf(days,ad,expiry,sellingTolerance);
   if(s==='expired')return`<span class="badge badge-red">期限切れ</span>`;
   if(s==='warn')return`<span class="badge badge-amber">${days}日</span>`;
   return`<span class="badge badge-green">${days}日</span>`;
 }
+/* ▲▲▲ v1.1 修正 ▲▲▲ */
 
-// ============================================================
-// 列の表示/非表示トグル
-// ============================================================
-
-// デフォルトで非表示にする列（部門・JANコード・担当者・登録日・ESL番号・10個以上ロス実績）
+// ===== COLUMN TOGGLE =====
 const DEFAULT_HIDDEN=new Set([1,3,12,13,14,18]);
-let hiddenCols=new Set(DEFAULT_HIDDEN);// 現在非表示になっている列の集合
-let colMode='default';// 'default' or 'custom'
+let hiddenCols=new Set(DEFAULT_HIDDEN);
+let colMode='default';
 
-// デフォルト/カスタムモードの切り替え
 function setColMode(mode){
   colMode=mode;
   if(mode==='default'){
-    hiddenCols=new Set(DEFAULT_HIDDEN);// デフォルトに戻す
+    hiddenCols=new Set(DEFAULT_HIDDEN);
     document.querySelectorAll('.col-toggle-bar input[type=checkbox]').forEach(cb=>{
       const col=parseInt(cb.getAttribute('data-col'));cb.checked=!DEFAULT_HIDDEN.has(col);
     });
   }
-  // モード切り替えボタンのスタイルを更新
   document.getElementById('mode-default').style.fontWeight=mode==='default'?'700':'400';
   document.getElementById('mode-custom').style.fontWeight=mode==='custom'?'700':'400';
   document.getElementById('mode-default').style.color=mode==='default'?'#185FA5':'#888';
@@ -1192,31 +874,15 @@ function setColMode(mode){
   applyColVisibility();
 }
 
-// 賞味期限切れまでの日数フィルター（スライダー＋数値入力が連動）
-let alertDays=365;// デフォルト365日（実質全件表示）
+let alertDays=7;
+function changeAlertDays(d){alertDays=Math.min(60,Math.max(1,alertDays+d));document.getElementById('alert-days-disp').textContent=alertDays;renderList();}
 
-// スライダーまたは数値入力が変化したときに両方を同期する
-// src: 'slider'（スライダーが変化）or 'num'（数値入力が変化）
-function syncAlertDays(src){
-  const s=document.getElementById('alert-days-slider'),n=document.getElementById('alert-days-num');
-  if(src==='slider'){
-    alertDays=Math.max(0,Math.min(365,parseInt(s.value)||0));
-    n.value=alertDays;// 数値入力欄を同期
-  }else{
-    alertDays=Math.max(0,Math.min(365,parseInt(n.value)||0));
-    s.value=alertDays;// スライダーを同期
-  }
-  renderList();// 即座に一覧を再描画
-}
-
-// トグルの切り替えで列の表示/非表示を変更する
 function toggleCol(col,visible){
-  colMode='custom';// トグルを触ったら自動的にカスタムモードに
+  colMode='custom';
   if(visible)hiddenCols.delete(col);else hiddenCols.add(col);
   applyColVisibility();
 }
 
-// hiddenCols の状態を実際のテーブルのth・tdに反映する
 function applyColVisibility(){
   const table=document.querySelector('#panel-list .table-wrap table');
   if(!table)return;
@@ -1234,32 +900,20 @@ function applyColVisibility(){
   });
 }
 
-// 10個以上ロス実績フラグをSupabaseに保存する
 async function setHighExpiryFlag(id){
   await sb.from('expiry_records').update({high_expiry_flag:true}).eq('id',id);
 }
 
-// 販売許容期限切れ個数を±1する（0になったら済にするか確認）
 async function adjustExpiredQty(id,delta,isArchive){
-  if(isArchive)return;// アーカイブ行は変更不可
+  if(isArchive)return;
   const item=listData.find(r=>r.id===id&&!r.is_archive);if(!item)return;
-  const nextQty=Math.max(0,(parseInt(item.expired_qty,10)||0)+delta);// 0未満にはしない
-  if(nextQty===item.expired_qty)return;// 変化なしはスキップ
-  if(nextQty===0){
-    showQtyZeroDialog(id,item);// 0になったら確認ダイアログ
-    return;
-  }
-  await doUpdateExpiredQty(id,item,nextQty);
-}
-
-// 個数をSupabaseに保存して画面を更新する
-async function doUpdateExpiredQty(id,item,nextQty){
+  const nextQty=Math.max(0,(parseInt(item.expired_qty,10)||0)+delta);
+  if(nextQty===item.expired_qty)return;
   showLoading(true);
   const {error}=await sb.from('expiry_records').update({expired_qty:nextQty,qty_updated_at:todayStr()}).eq('id',id);
   showLoading(false);
   if(error){toast('個数更新に失敗しました：'+error.message);return;}
   item.expired_qty=nextQty;
-  // 初めて10個以上になったときにロス実績フラグをセット
   if(nextQty>=10&&!item.high_expiry_flag){
     await setHighExpiryFlag(item.id);
     item.high_expiry_flag=true;
@@ -1267,85 +921,6 @@ async function doUpdateExpiredQty(id,item,nextQty){
   renderList();
 }
 
-// ============================================================
-// 各種確認ダイアログ
-// ============================================================
-
-// 個数が0になったときの確認ダイアログ（済にするかどうか）
-let _qtyZeroId=null,_qtyZeroItem=null;
-function showQtyZeroDialog(id,item){
-  _qtyZeroId=id;_qtyZeroItem=item;
-  document.getElementById('dialog-title').textContent='販売許容期限切れ個数が0になりました';
-  document.getElementById('dialog-msg').textContent='期限切れ商品はすべて処理済みですか？';
-  const b1=document.getElementById('dialog-btn1');
-  const b2=document.getElementById('dialog-btn2');
-  const bc=document.getElementById('dialog-cancel');
-  b1.textContent='はい（0にして済にする）';b1.className='dialog-btn dialog-btn-blue';b1.onclick=()=>qtyZeroAction(true);
-  b2.textContent='いいえ（0のまま残す）';b2.className='dialog-btn dialog-btn-gray';b2.onclick=()=>qtyZeroAction(false);
-  bc.style.display='none';
-  document.getElementById('dialog-overlay').classList.add('show');
-}
-async function qtyZeroAction(doArchive){
-  closeDialog();
-  document.getElementById('dialog-cancel').style.display='';
-  const id=_qtyZeroId,item=_qtyZeroItem;
-  _qtyZeroId=null;_qtyZeroItem=null;
-  await doUpdateExpiredQty(id,item,0);
-  if(doArchive) await doArchiveItem(id);// 済にする場合はアーカイブ移動
-}
-
-// 済チェック時に期限切れ個数が残っている場合の確認ダイアログ
-let _pendingCheckId=null;
-function showCheckConfirmDialog(id,item){
-  _pendingCheckId=id;
-  document.getElementById('dialog-title').textContent='販売許容期限切れ個数が残っています（'+item.expired_qty+'個）';
-  document.getElementById('dialog-msg').textContent='すべて処理済みですか？';
-  const b1=document.getElementById('dialog-btn1');
-  const b2=document.getElementById('dialog-btn2');
-  const bc=document.getElementById('dialog-cancel');
-  b1.textContent='はい。期限切れはもうありません';b1.className='dialog-btn dialog-btn-blue';b1.onclick=()=>checkConfirmAction(true);
-  b2.textContent='いいえ　まだ期限切れが残っています';b2.className='dialog-btn dialog-btn-red';b2.onclick=()=>checkConfirmAction(false);
-  bc.style.display='none';
-  document.getElementById('dialog-overlay').classList.add('show');
-}
-async function checkConfirmAction(allDone){
-  closeDialog();
-  document.getElementById('dialog-cancel').style.display='';
-  const id=_pendingCheckId;_pendingCheckId=null;
-  const item=listData.find(r=>r.id===id);if(!item)return;
-  if(allDone){
-    // 個数を0にしてからアーカイブ
-    showLoading(true);
-    await sb.from('expiry_records').update({expired_qty:0,qty_updated_at:todayStr()}).eq('id',id);
-    showLoading(false);
-    item.expired_qty=0;
-    await doArchiveItem(id);
-  }
-  // いいえの場合は何もしない（チェックはつけない）
-}
-
-// ============================================================
-// アーカイブ（済）処理
-// ============================================================
-
-// レコードを expiry_archives に移動して expiry_records から削除する（済ボタン共通処理）
-async function doArchiveItem(id){
-  const item=listData.find(r=>r.id===id);if(!item)return;
-  showLoading(true);
-  const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty||0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
-  if(archErr){showLoading(false);toast('アーカイブに失敗しました：'+archErr.message);return;}
-  const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
-  showLoading(false);
-  if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
-  toast('済にしてアーカイブしました');
-  loadList();
-}
-
-// ============================================================
-// 値下げ処理場所の一覧行内更新
-// ============================================================
-
-// 一覧行の値下げ処理場所をSupabaseに保存する
 async function updateDiscountLocation(id,value,isArchive){
   if(isArchive)return;
   const item=listData.find(r=>r.id===id&&!r.is_archive);if(!item)return;
@@ -1357,15 +932,12 @@ async function updateDiscountLocation(id,value,isArchive){
   item.discount_location=nextValue;renderList();
 }
 
-// 一覧行の値下げ場所セレクトが変化したとき（フリーワード入力欄の表示切り替え）
 function handleListDiscountTypeChange(id,value){
   const input=document.getElementById(`discount-custom-${id}`);if(!input)return;
   const showCustom=value==='custom';input.style.display=showCustom?'block':'none';
-  if(showCustom){input.focus();return;}// フリーワードなら入力欄にフォーカス
-  input.value='';updateDiscountLocation(id,value,false);// プリセット選択時は即保存
+  if(showCustom){input.focus();return;}input.value='';updateDiscountLocation(id,value,false);
 }
 
-// フリーワード入力欄からフォーカスが外れたとき（入力完了）に保存する
 function saveListDiscountCustom(id){
   const select=document.getElementById(`discount-type-${id}`);
   const input=document.getElementById(`discount-custom-${id}`);
@@ -1373,91 +945,53 @@ function saveListDiscountCustom(id){
   updateDiscountLocation(id,input.value,false);
 }
 
-// 7日以上個数が更新されていない行（滞留）を判定する
 function isStale(r){
   if(r.checked||r.is_archive)return false;
   if(!r.expired_qty||r.expired_qty<=0)return false;
   const updated=r.qty_updated_at?new Date(r.qty_updated_at):new Date(r.registered_at);
   updated.setHours(0,0,0,0);
-  return Math.round((today-updated)/86400000)>=7;// 7日以上更新なし
+  return Math.round((today-updated)/86400000)>=7;
 }
 
-// ヘッダー列クリックでソートを切り替える（同じ列を再クリックで昇順/降順反転）
 function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderList();}
 
-// ============================================================
-// 一覧レンダリング（メインの描画処理）
-// ============================================================
-
 function renderList(){
-  const ad=alertDays;// 賞味期限切れまでの日数フィルター値
-  const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();// 検索ワード（小文字に統一）
-  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));// 全データに残日数を付加
-
-  // ===== 検索ワードがあるとき（2文字以上）：検索モード =====
-  // 検索中は通路・カテゴリ・alertDaysなど他のフィルターを無視する
-  // 店長 → 全件から検索 / 他部門 → 自部門内から検索
-  if(sq&&sq.length>=2){
-    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-    rows=rows.filter(r=>{
-      // 2〜3文字：商品名・通路・カテゴリのみ検索
-      if([r.name,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
-      // 4文字以上：自社コード・JANコードも検索対象に加える
-      if(sq.length>=4&&[r.own_code,r.jan].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
-      return false;
-    });
-  }else{
-    // ===== 検索ワードがないとき：通常フィルターモード =====
-    const fs=document.getElementById('filter-status').value;// ステータス絞り込み
-    const fa=document.getElementById('filter-aisle').value; // 通路絞り込み
-    const fc=document.getElementById('filter-cat').value;   // カテゴリ絞り込み
-    const fd=document.getElementById('filter-dept').value;  // 部門絞り込み（店長のみ）
-
-    if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
-    if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-    // 店長以外は自分の部門のデータしか見えない
-    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-    else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
-
-    // ステータス絞り込み
-    if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);// 10個以上ロス実績のみ
-    else if(fs==='stale')rows=rows.filter(r=>isStale(r));       // 7日以上滞留のみ
-    else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-
-    // 販売許容期限フィルター（ログイン時設定）：アーカイブ行は除外しない
-    if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
-
-    // 賞味期限切れまでの日数フィルター
-    // 期限切れ（days<0）は常に表示。それ以外は alertDays 以内のみ表示
-    rows=rows.filter(r=>r.days<0||r.days<=ad);
-  }
-
-  // ソート処理
+  const ad=alertDays;
+  const fs=document.getElementById('filter-status').value;
+  const fa=document.getElementById('filter-aisle').value;
+  const fc=document.getElementById('filter-cat').value;
+  const fd=document.getElementById('filter-dept').value;
+  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
+  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+  if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+  if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
+  else if(fs==='stale')rows=rows.filter(r=>isStale(r));
+  /* ▼▼▼ v1.1 修正: statusOfに4引数を渡す（元々4引数だった） ▼▼▼ */
+  else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
+  /* ▲▲▲ v1.1 修正 ▲▲▲ */
+  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
   rows.sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
     if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
     if(sortKey==='aisle'){const n1=parseInt(av),n2=parseInt(bv);if(n1!==n2)return(n1-n2)*sortDir;av=String(av).slice(-1);bv=String(bv).slice(-1);}
     return av<bv?-sortDir:av>bv?sortDir:0;
   });
-
-  // 統計カードの数値を更新（listData全体を集計。フィルターに関係なく全件カウント）
-  const exp=listData.filter(r=>!r.is_archive&&daysLeft(r.expiry)<0).length;// 期限切れ数
-  const warn=listData.filter(r=>{if(r.is_archive)return false;const d=daysLeft(r.expiry);return statusOf(d,ad,r.expiry,r.selling_tolerance)==='warn';}).length;// 警告圏内数
-  const done=listData.filter(r=>r.checked).length;// 確認済み数
+  const exp=listData.filter(r=>daysLeft(r.expiry)<0).length;
+  /* ▼▼▼ v1.1 修正: warnカウントもstatusOfで統一判定 ▼▼▼ */
+  const warn=listData.filter(r=>{const d=daysLeft(r.expiry);return statusOf(d,ad,r.expiry,r.selling_tolerance)==='warn';}).length;
+  /* ▲▲▲ v1.1 修正 ▲▲▲ */
+  const done=listData.filter(r=>r.checked).length;
   document.getElementById('s-total').textContent=listData.length;
   document.getElementById('s-expired').textContent=exp;
   document.getElementById('s-warn').textContent=warn;
   document.getElementById('s-done').textContent=done;
-  // 進捗バーの幅を「確認済み÷総数」で計算
   document.getElementById('s-prog').style.width=listData.length?Math.round(done/listData.length*100)+'%':'0%';
-
-  // テーブルの行を生成してtbodyに挿入
   const tbody=document.getElementById('tbody');
   if(!rows.length){tbody.innerHTML=`<tr><td colspan="15" class="empty-row">該当する商品はありません</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>{
     const qty=r.expired_qty||0;
-
-    // 販売許容期限切れ個数セル：アーカイブ行はバッジ表示、現役行は±ステッパー
     const qtyCell=r.is_archive
       ?(qty>0?`<span class="badge badge-red">${qty}個</span>`:`<span class="muted">—</span>`)
       :`<div class="qty-stepper">
@@ -1465,8 +999,6 @@ function renderList(){
           <span class="qty-value">${qty}</span>
           <button type="button" onclick="adjustExpiredQty('${r.id}',1,false)">+</button>
         </div>`;
-
-    // 値下げ処理場所セル：アーカイブ行はバッジ表示、現役行はセレクト＋フリーワード入力
     const discountState=getDiscountState(r.discount_location||'');
     const locCell=r.is_archive
       ?(r.discount_location?`<span class="badge badge-purple">${r.discount_location}</span>`:`<span class="muted">—</span>`)
@@ -1479,8 +1011,6 @@ function renderList(){
             onblur="saveListDiscountCustom('${r.id}')"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}" />
         </div>`;
-
-    // 1行分のHTMLを生成（テンプレートリテラルで組み立て）
     return`<tr class="${r.checked?'checked-row':''}">
       <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
       <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
@@ -1504,14 +1034,10 @@ function renderList(){
       <td data-col="del" style="text-align:center"><button onclick="deleteRecord('${r.id}',${r.is_archive||false})" style="background:none;border:none;font-size:16px;cursor:pointer;color:#e53;">🗑</button></td>
     </tr>`;
   }).join('');
-  applyColVisibility();// 非表示列を適用
+  applyColVisibility();
 }
 
-// ============================================================
-// 印刷処理
-// ============================================================
-
-// 現在のフィルター状態のデータを A4 印刷用HTMLに変換してブラウザ印刷を起動する
+// ===== PRINT =====
 function printList(){
   const existing=document.getElementById('print-area');if(existing)existing.remove();
   const ad=alertDays;
@@ -1528,23 +1054,25 @@ function printList(){
   else if(fs==='stale')rows=rows.filter(r=>isStale(r));
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
   if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
-  // 賞味期限昇順で並べ替え
   rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
-
-  // 印刷する列と列名の定義（画面の列トグルに関係なく固定列を印刷）
   const colDefs={0:'済',2:'通路',4:'自社コード',5:'商品名',7:'最古賞味期限',8:'販売許容期限切れ個数',10:'賞味期限切れまでの日数',11:'値下処理商品の場所'};
   const visibleCols=Object.keys(colDefs).map(Number).filter(c=>!hiddenCols.has(c));
+  // 商品名列のインデックス(colDefs上の位置)を特定
+  const nameColIdx=visibleCols.indexOf(5);
+  const totalCols=visibleCols.length;
+  // 商品名列より前の列数・後の列数を算出
+  const colsBeforeName=nameColIdx>=0?nameColIdx:0;
+  const colsAfterName=nameColIdx>=0?totalCols-nameColIdx-1:0;
 
-  // 印刷専用のdivを動的に作ってbodyに追加（印刷後は自動削除）
   const div=document.createElement('div');div.id='print-area';div.style.cssText='display:none;';
   let html=`<div style="font-size:12px;margin-bottom:6px;">賞味期限管理リスト　${todayStr()}　担当：${currentStaff}　${currentDept}</div>`;
   html+=`<table><thead><tr>`;
   visibleCols.forEach(col=>{html+=`<th>${colDefs[col]}</th>`;});
   html+=`</tr></thead><tbody>`;
-  rows.forEach(r=>{
+  rows.forEach((r,idx)=>{
     const days=daysLeft(r.expiry);const s=statusOf(days,ad,r.expiry,r.selling_tolerance);
-    // 期限切れ行はピンク、警告行はオレンジ背景
     const bg=s==='expired'?'background:#fde8e8;':s==='warn'?'background:#fef3e2;':'';
+    // 1行目：通常のデータ行
     html+=`<tr style="${bg}">`;
     visibleCols.forEach(col=>{
       switch(col){
@@ -1559,18 +1087,37 @@ function printList(){
       }
     });
     html+=`</tr>`;
+    // 2行目：バーコード行（商品名の列位置にバーコードを表示）
+    const jan=r.jan||'';
+    html+=`<tr class="barcode-row" style="${bg}">`;
+    if(colsBeforeName>0)html+=`<td colspan="${colsBeforeName}" style="border-top:none;"></td>`;
+    html+=`<td class="barcode-cell" style="border-top:none;">`;
+    if(jan&&/^\d{8,13}$/.test(jan)){
+      html+=`<svg id="bc-print-${idx}"></svg>`;
+      html+=`<div class="barcode-jan">${jan}</div>`;
+    }else{
+      html+=`<span style="font-size:9px;color:#aaa;">JAN なし</span>`;
+    }
+    html+=`</td>`;
+    if(colsAfterName>0)html+=`<td colspan="${colsAfterName}" style="border-top:none;"></td>`;
+    html+=`</tr>`;
   });
   html+=`</tbody></table>`;
   div.innerHTML=html;document.body.appendChild(div);div.style.display='block';
-  window.print();
-  setTimeout(()=>div.remove(),1000);// 印刷後1秒で印刷用divを削除
+  // JSBarcodeでSVGを生成
+  rows.forEach((r,idx)=>{
+    const el=document.getElementById(`bc-print-${idx}`);
+    const jan=r.jan||'';
+    if(el&&jan&&/^\d{8,13}$/.test(jan)){
+      try{
+        JsBarcode(el,jan,{format:jan.length===8?'EAN8':'EAN13',width:1,height:30,displayValue:false,margin:0});
+      }catch(e){el.remove();}
+    }
+  });
+  // SVG描画完了を待ってから印刷
+  setTimeout(()=>{window.print();setTimeout(()=>div.remove(),1000);},200);
 }
 
-// ============================================================
-// 削除・済チェック処理
-// ============================================================
-
-// レコードを完全削除する（現役はexpiry_records、履歴はexpiry_archivesから削除）
 async function deleteRecord(id,isArchive){
   if(!confirm('このデータを完全に削除しますか？\nこの操作は取り消せません。'))return;
   showLoading(true);
@@ -1579,86 +1126,21 @@ async function deleteRecord(id,isArchive){
   showLoading(false);toast('削除しました');loadList();
 }
 
-// 済チェックボックスのON/OFFを切り替える
 async function toggleCheck(id,current){
   const item=listData.find(r=>r.id===id);if(!item)return;
   if(!current){
-    // 未チェック → 済にする
-    const qty=parseInt(item.expired_qty,10)||0;
-    if(qty>0){
-      showCheckConfirmDialog(id,item);// 個数が残っているなら確認ダイアログ
-      return;
-    }
-    await doArchiveItem(id);// 個数0ならそのままアーカイブ
+    const{error:archErr}=await sb.from('expiry_archives').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:0,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked_at:todayStr(),department:item.department,name:item.name,own_code:item.own_code,category:item.category,high_expiry_flag:item.high_expiry_flag||false});
+    if(archErr){toast('アーカイブに失敗しました：'+archErr.message);return;}
+    const{error:delErr}=await sb.from('expiry_records').delete().eq('id',id);
+    if(delErr){toast('削除に失敗しました：'+delErr.message);return;}
+    toast('済にしてアーカイブしました');
   }else{
-    // 済 → 未チェックに戻す（アーカイブから現役に復元）
-    showLoading(true);
     const{error:restErr}=await sb.from('expiry_records').insert({jan:item.jan,aisle:item.aisle,expiry:item.expiry,expired_qty:item.expired_qty,discount_location:item.discount_location,staff:item.staff,registered_at:item.registered_at,checked:false});
-    showLoading(false);
     if(restErr){toast('復元に失敗しました：'+restErr.message);return;}
     await sb.from('expiry_archives').delete().eq('id',id);
     toast('済を解除して現役に戻しました');
-    loadList();
   }
-}
-
-// ============================================================
-// ログアウト処理
-// ============================================================
-
-// ログアウトボタンを押したとき：警告圏内が残っていれば確認ダイアログを出す
-function doLogout(){
-  const ad=alertDays;
-  const hasWarn=listData.some(r=>{
-    if(r.is_archive)return false;
-    const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);
-    return s==='expired'||s==='warn';// 期限切れ or 警告圏内があればtrue
-  });
-  if(hasWarn){
-    // 警告圏内が残っている場合は確認ダイアログ
-    document.getElementById('dialog-title').textContent='期限切れ・警告圏内の商品が残っています';
-    document.getElementById('dialog-msg').textContent='作業終了でよろしいですか？';
-    const b1=document.getElementById('dialog-btn1');
-    const b2=document.getElementById('dialog-btn2');
-    b1.textContent='はい。もう終わります';b1.className='dialog-btn dialog-btn-blue';
-    b1.onclick=()=>{closeDialog();execLogout(true);};
-    b2.textContent='いいえ（作業を続ける）';b2.className='dialog-btn dialog-btn-gray';
-    b2.onclick=()=>{closeDialog();};
-    document.getElementById('dialog-cancel').style.display='none';
-    document.getElementById('dialog-overlay').classList.add('show');
-  }else{
-    execLogout(false);// 警告なしはそのままログアウト
-  }
-}
-
-// 実際のログアウト処理：グローバル変数・画面をすべてリセットしてログイン画面に戻る
-function execLogout(hadWarn){
-  // グローバル変数をリセット
-  currentStaff='';currentDept='';listData=[];
-  sortKey='expiry';sortDir=1;currentMaster=null;
-  // スライダー・数値入力も初期値（365日）にリセット
-  alertDays=365;
-  document.getElementById('alert-days-slider').value=365;
-  document.getElementById('alert-days-num').value=365;
-  // 画面切り替え
-  document.getElementById('main-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  // ログインフォームをクリア
-  document.getElementById('login-name').value='';
-  document.getElementById('login-dept').value='';
-  // 統計カードをゼロリセット
-  document.getElementById('tbody').innerHTML='';
-  document.getElementById('s-total').textContent='0';
-  document.getElementById('s-expired').textContent='0';
-  document.getElementById('s-warn').textContent='0';
-  document.getElementById('s-done').textContent='0';
-  document.getElementById('s-prog').style.width='0%';
-  // ログアウト完了メッセージ
-  if(hadWarn){
-    toast('期限切れ・警告圏内商品があることを報告してください。おつかれさまでした。',4000);
-  }else{
-    toast('おつかれさまでした。',2500);
-  }
+  loadList();
 }
 </script>
 </body>
