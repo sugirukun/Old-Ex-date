@@ -197,7 +197,7 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 @media print {
   body * { visibility: hidden; }
   #print-area, #print-area * { visibility: visible; }
-  #print-area { position: fixed; top: 0; left: 0; width: 100%; }
+  #print-area { position: static; width: 100%; }
   @page { size: A4 landscape; margin: 10mm; }
   #print-area table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
   #print-area thead { display: table-header-group; }
