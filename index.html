@@ -1055,8 +1055,11 @@ function printList(){
   else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
   if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
   rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
-  const colDefs={0:'済',2:'通路',4:'自社コード',5:'商品名',7:'最古賞味期限',8:'販売許容期限切れ個数',10:'賞味期限切れまでの日数',11:'値下処理商品の場所'};
-  const visibleCols=Object.keys(colDefs).map(Number).filter(c=>!hiddenCols.has(c));
+  // 全列定義（画面のtheadと同じ順序。delは印刷対象外）
+  const allColDefs={0:'済',1:'部門',2:'通路',3:'JANコード',4:'自社コード',5:'商品名',6:'カテゴリ',7:'最古賞味期限',8:'販売許容期限切れ個数',9:'値引き対象日',17:'販売許容期限',10:'賞味期限切れまでの日数',11:'値下処理商品の場所',12:'担当者',13:'登録日',18:'⚠️10個以上ロス実績',14:'ESL番号',15:'売り切り方法',16:'ぶっとおし'};
+  // 画面で表示中の列のみ印刷（hiddenColsに入っていない列）
+  const colOrder=[0,1,2,3,4,5,6,7,8,9,17,10,11,12,13,18,14,15,16];
+  const visibleCols=colOrder.filter(c=>!hiddenCols.has(c));
   // 商品名列のインデックス(colDefs上の位置)を特定
   const nameColIdx=visibleCols.indexOf(5);
   const totalCols=visibleCols.length;
@@ -1067,7 +1070,7 @@ function printList(){
   const div=document.createElement('div');div.id='print-area';div.style.cssText='display:none;';
   let html=`<div style="font-size:12px;margin-bottom:6px;">賞味期限管理リスト　${todayStr()}　担当：${currentStaff}　${currentDept}</div>`;
   html+=`<table><thead><tr>`;
-  visibleCols.forEach(col=>{html+=`<th>${colDefs[col]}</th>`;});
+  visibleCols.forEach(col=>{html+=`<th>${allColDefs[col]}</th>`;});
   html+=`</tr></thead><tbody>`;
   rows.forEach((r,idx)=>{
     const days=daysLeft(r.expiry);const s=statusOf(days,ad,r.expiry,r.selling_tolerance);
@@ -1077,13 +1080,24 @@ function printList(){
     visibleCols.forEach(col=>{
       switch(col){
         case 0:html+=`<td style="text-align:center">${r.checked?'✓':''}</td>`;break;
+        case 1:html+=`<td>${r.department||'—'}</td>`;break;
         case 2:html+=`<td>${r.aisle}</td>`;break;
+        case 3:html+=`<td style="font-family:monospace;font-size:10px">${r.jan||'—'}</td>`;break;
         case 4:html+=`<td style="font-family:monospace">${r.own_code}</td>`;break;
         case 5:html+=`<td>${r.name}</td>`;break;
+        case 6:html+=`<td>${r.category||'—'}</td>`;break;
         case 7:html+=`<td>${r.expiry}</td>`;break;
         case 8:html+=`<td style="text-align:center">${r.expired_qty>0?r.expired_qty+'個':'—'}</td>`;break;
+        case 9:html+=`<td>${(()=>{const d=calcMarkdownTarget(r.expiry,r.selling_tolerance);return isMarkdownTarget(r.expiry,r.selling_tolerance)?'★'+d:d;})()}</td>`;break;
+        case 17:html+=`<td style="text-align:center">${r.selling_tolerance!=null?r.selling_tolerance+'日':'—'}</td>`;break;
         case 10:html+=`<td style="text-align:center">${days}日</td>`;break;
         case 11:html+=`<td>${r.discount_location||'—'}</td>`;break;
+        case 12:html+=`<td>${r.staff||'—'}</td>`;break;
+        case 13:html+=`<td style="font-size:10px">${r.registered_at||'—'}</td>`;break;
+        case 18:html+=`<td style="text-align:center">${r.high_expiry_flag?'⚠️':'—'}</td>`;break;
+        case 14:html+=`<td style="font-family:monospace;font-size:10px">${r.esl_code||'—'}</td>`;break;
+        case 15:html+=`<td>${r.selloff_method||'—'}</td>`;break;
+        case 16:html+=`<td>${r.buttoshi||'—'}</td>`;break;
       }
     });
     html+=`</tr>`;
