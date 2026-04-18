@@ -195,7 +195,8 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 /* ===== 印刷用スタイル =====
    印刷時は#print-area以外を非表示にしてA4で出力 */
 @media print {
-  body * { visibility: hidden; }
+  body { margin: 0; }
+  body > *:not(#print-area) { display: none !important; }
   #print-area, #print-area * { visibility: visible; }
   #print-area { position: static; width: 100%; }
   @page { size: A4 landscape; margin: 10mm; }
