@@ -1,6 +1,6 @@
 <!-- ============================================================
   賞味期限管理アプリ v2.0
-   【ファイル構成の概要】
+  【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
   ・<style>タグ  → 見た目（色・サイズ・レイアウト）の設定
   ・<body>タグ   → 画面に表示されるHTML部品
@@ -25,6 +25,7 @@
 <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 <!-- Tesseract.js: 棚札OCR（カメラで7桁コードを自動認識）用AI -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 
 <style>
 /* ===== 全体のリセット =====
@@ -198,10 +199,17 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
   #print-area, #print-area * { visibility: visible; }
   #print-area { position: fixed; top: 0; left: 0; width: 100%; }
   @page { size: A4 portrait; margin: 10mm; }
-  #print-area table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  #print-area table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
   #print-area thead { display: table-header-group; }
   #print-area th { background: #f0f0f0 !important; border: 1px solid #ccc; padding: 4px 6px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #print-area td { border: 1px solid #ccc; padding: 4px 6px; }
+  #print-area .print-main-row td { vertical-align: middle; }
+  #print-area .print-barcode-row td { padding-top: 6px; padding-bottom: 8px; }
+  #print-area .print-barcode-spacer { background: #fff !important; }
+  #print-area .print-barcode-cell { text-align: center; }
+  #print-area .print-barcode-block { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; }
+  #print-area .print-barcode-block svg { width: 220px; max-width: 100%; height: 42px; }
+  #print-area .print-barcode-number { font-size: 10px; letter-spacing: 1px; font-family: monospace; }
   /* 期限切れ行はピンク、警告行はオレンジで印刷 */
   #print-area tr[style*="fde8e8"] { background: #fde8e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   #print-area tr[style*="fef3e2"] { background: #fef3e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -647,6 +655,10 @@ function buildDiscountOptions(selectedType=''){
 // HTMLの特殊文字をエスケープ（XSS対策：悪意ある入力をそのままHTMLに埋め込まないようにする）
 function escapeAttr(value=''){
   return String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escapeHtml(value=''){
+  return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // ============================================================
@@ -1163,12 +1175,120 @@ function badgeFor(days,ad,expiry,sellingTolerance){
   return`<span class="badge badge-green">${days}日</span>`;
 }
 
+function getFilteredSortedRows(){
+  const ad=alertDays;
+  const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();
+  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+
+  if(sq&&sq.length>=2){
+    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+    rows=rows.filter(r=>{
+      if([r.name,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
+      if(sq.length>=4&&[r.own_code,r.jan].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
+      return false;
+    });
+  }else{
+    const fs=document.getElementById('filter-status').value;
+    const fa=document.getElementById('filter-aisle').value;
+    const fc=document.getElementById('filter-cat').value;
+    const fd=document.getElementById('filter-dept').value;
+    if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
+    if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+    else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
+    if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
+    else if(fs==='stale')rows=rows.filter(r=>isStale(r));
+    else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
+    if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
+    rows=rows.filter(r=>r.days<0||r.days<=ad);
+  }
+
+  rows.sort((a,b)=>{
+    let av=a[sortKey],bv=b[sortKey];
+    if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
+    if(sortKey==='aisle'){
+      const n1=parseInt(av),n2=parseInt(bv);
+      if(n1!==n2)return(n1-n2)*sortDir;
+      av=String(av).slice(-1);
+      bv=String(bv).slice(-1);
+    }
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+
+  return rows;
+}
+
+function getVisibleColumnIds(){
+  return Object.keys(COLUMN_DEFS).map(Number).filter(col=>!hiddenCols.has(col));
+}
+
+function barcodeSvgForPrint(jan){
+  const value=String(jan||'').trim();
+  if(!value)return'';
+  if(typeof JsBarcode!=='function')return`<div class="print-barcode-number">${escapeHtml(value)}</div>`;
+  try{
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    const format=/^\d{8}$/.test(value)?'EAN8':/^\d{13}$/.test(value)?'EAN13':'CODE128';
+    JsBarcode(svg,value,{format,displayValue:false,margin:0,width:1.4,height:40});
+    return `<div class="print-barcode-block">${svg.outerHTML}<div class="print-barcode-number">${escapeHtml(value)}</div></div>`;
+  }catch(_e){
+    return `<div class="print-barcode-number">${escapeHtml(value)}</div>`;
+  }
+}
+
+function printCellHtml(r,col,ad){
+  const days=r.days!=null?r.days:daysLeft(r.expiry);
+  switch(col){
+    case 0:return `<td style="text-align:center">${r.checked?'✓':''}</td>`;
+    case 1:return `<td>${escapeHtml(r.department||'')}</td>`;
+    case 2:return `<td>${escapeHtml(r.aisle||'')}</td>`;
+    case 3:return `<td style="font-family:monospace">${escapeHtml(r.jan||'')}</td>`;
+    case 4:return `<td style="font-family:monospace">${escapeHtml(r.own_code||'')}</td>`;
+    case 5:return `<td>${escapeHtml(r.name||'')}</td>`;
+    case 6:return `<td>${escapeHtml(r.category||'')}</td>`;
+    case 7:return `<td>${escapeHtml(r.expiry||'')}</td>`;
+    case 8:return `<td style="text-align:center">${r.expired_qty>0?`${r.expired_qty}個`:''}</td>`;
+    case 9:return `<td>${escapeHtml(calcMarkdownTarget(r.expiry,r.selling_tolerance)||'')}</td>`;
+    case 10:return `<td style="text-align:center">${statusOf(days,ad,r.expiry,r.selling_tolerance)==='expired'?'期限切れ':`${days}日`}</td>`;
+    case 11:return `<td>${escapeHtml(r.discount_location||'')}</td>`;
+    case 12:return `<td>${escapeHtml(r.staff||'')}</td>`;
+    case 13:return `<td>${escapeHtml(r.registered_at||'')}</td>`;
+    case 14:return `<td style="font-family:monospace">${escapeHtml(r.esl_code||'')}</td>`;
+    case 15:return `<td>${escapeHtml(r.selloff_method||'')}</td>`;
+    case 16:return `<td>${escapeHtml(r.buttoshi||'')}</td>`;
+    case 17:return `<td style="text-align:center">${r.selling_tolerance!=null?`${r.selling_tolerance}日`:''}</td>`;
+    case 18:return `<td style="text-align:center">${r.high_expiry_flag?'10個以上':''}</td>`;
+    default:return '<td></td>';
+  }
+}
+
 // ============================================================
 // 列の表示/非表示トグル
 // ============================================================
 
 // デフォルトで非表示にする列（部門・JANコード・担当者・登録日・ESL番号・10個以上ロス実績）
 const DEFAULT_HIDDEN=new Set([1,3,12,13,14,18]);
+const COLUMN_DEFS={
+  0:{label:'済'},
+  1:{label:'部門'},
+  2:{label:'通路'},
+  3:{label:'JANコード'},
+  4:{label:'自社コード'},
+  5:{label:'商品名'},
+  6:{label:'カテゴリ'},
+  7:{label:'最古賞味期限'},
+  8:{label:'販売許容期限切れ個数'},
+  9:{label:'値引き対象日'},
+  10:{label:'賞味期限切れまでの日数'},
+  11:{label:'値下処理商品の場所'},
+  12:{label:'担当者'},
+  13:{label:'登録日'},
+  14:{label:'ESL番号'},
+  15:{label:'売り切り方法'},
+  16:{label:'ぶっとおし'},
+  17:{label:'販売許容期限'},
+  18:{label:'⚠️10個以上ロス実績'}
+};
 let hiddenCols=new Set(DEFAULT_HIDDEN);// 現在非表示になっている列の集合
 let colMode='default';// 'default' or 'custom'
 
@@ -1389,54 +1509,7 @@ function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}re
 
 function renderList(){
   const ad=alertDays;// 賞味期限切れまでの日数フィルター値
-  const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();// 検索ワード（小文字に統一）
-  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));// 全データに残日数を付加
-
-  // ===== 検索ワードがあるとき（2文字以上）：検索モード =====
-  // 検索中は通路・カテゴリ・alertDaysなど他のフィルターを無視する
-  // 店長 → 全件から検索 / 他部門 → 自部門内から検索
-  if(sq&&sq.length>=2){
-    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-    rows=rows.filter(r=>{
-      // 2〜3文字：商品名・通路・カテゴリのみ検索
-      if([r.name,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
-      // 4文字以上：自社コード・JANコードも検索対象に加える
-      if(sq.length>=4&&[r.own_code,r.jan].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
-      return false;
-    });
-  }else{
-    // ===== 検索ワードがないとき：通常フィルターモード =====
-    const fs=document.getElementById('filter-status').value;// ステータス絞り込み
-    const fa=document.getElementById('filter-aisle').value; // 通路絞り込み
-    const fc=document.getElementById('filter-cat').value;   // カテゴリ絞り込み
-    const fd=document.getElementById('filter-dept').value;  // 部門絞り込み（店長のみ）
-
-    if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
-    if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-    // 店長以外は自分の部門のデータしか見えない
-    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-    else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
-
-    // ステータス絞り込み
-    if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);// 10個以上ロス実績のみ
-    else if(fs==='stale')rows=rows.filter(r=>isStale(r));       // 7日以上滞留のみ
-    else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-
-    // 販売許容期限フィルター（ログイン時設定）：アーカイブ行は除外しない
-    if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
-
-    // 賞味期限切れまでの日数フィルター
-    // 期限切れ（days<0）は常に表示。それ以外は alertDays 以内のみ表示
-    rows=rows.filter(r=>r.days<0||r.days<=ad);
-  }
-
-  // ソート処理
-  rows.sort((a,b)=>{
-    let av=a[sortKey],bv=b[sortKey];
-    if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
-    if(sortKey==='aisle'){const n1=parseInt(av),n2=parseInt(bv);if(n1!==n2)return(n1-n2)*sortDir;av=String(av).slice(-1);bv=String(bv).slice(-1);}
-    return av<bv?-sortDir:av>bv?sortDir:0;
-  });
+  const rows=getFilteredSortedRows();
 
   // 統計カードの数値を更新（listData全体を集計。フィルターに関係なく全件カウント）
   const exp=listData.filter(r=>!r.is_archive&&daysLeft(r.expiry)<0).length;// 期限切れ数
@@ -1513,49 +1586,28 @@ function renderList(){
 function printList(){
   const existing=document.getElementById('print-area');if(existing)existing.remove();
   const ad=alertDays;
-  const fs=document.getElementById('filter-status').value;
-  const fa=document.getElementById('filter-aisle').value;
-  const fc=document.getElementById('filter-cat').value;
-  const fd=document.getElementById('filter-dept').value;
-  let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
-  if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
-  if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-  if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
-  else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
-  if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
-  else if(fs==='stale')rows=rows.filter(r=>isStale(r));
-  else if(fs!=='all')rows=rows.filter(r=>statusOf(r.days,ad,r.expiry,r.selling_tolerance)===fs);
-  if(filterLowTolerance)rows=rows.filter(r=>r.is_archive||(r.selling_tolerance==null||r.selling_tolerance>filterLowToleranceThreshold));
-  // 賞味期限昇順で並べ替え
-  rows.sort((a,b)=>{let av=new Date(a.expiry),bv=new Date(b.expiry);return av<bv?-1:av>bv?1:0;});
-
-  // 印刷する列と列名の定義（画面の列トグルに関係なく固定列を印刷）
-  const colDefs={0:'済',2:'通路',4:'自社コード',5:'商品名',7:'最古賞味期限',8:'販売許容期限切れ個数',10:'賞味期限切れまでの日数',11:'値下処理商品の場所'};
-  const visibleCols=Object.keys(colDefs).map(Number).filter(c=>!hiddenCols.has(c));
+  const rows=getFilteredSortedRows();
+  const visibleCols=getVisibleColumnIds();
+  const barcodeAnchorIndex=Math.max(0,visibleCols.indexOf(5)>=0?visibleCols.indexOf(5):Math.min(visibleCols.length-1,1));
+  const spacerCount=barcodeAnchorIndex;
+  const barcodeColspan=Math.max(1,visibleCols.length-spacerCount);
 
   // 印刷専用のdivを動的に作ってbodyに追加（印刷後は自動削除）
   const div=document.createElement('div');div.id='print-area';div.style.cssText='display:none;';
-  let html=`<div style="font-size:12px;margin-bottom:6px;">賞味期限管理リスト　${todayStr()}　担当：${currentStaff}　${currentDept}</div>`;
+  let html=`<div style="font-size:12px;margin-bottom:6px;">賞味期限管理リスト　${todayStr()}　担当:${escapeHtml(currentStaff)}　${escapeHtml(currentDept)}</div>`;
   html+=`<table><thead><tr>`;
-  visibleCols.forEach(col=>{html+=`<th>${colDefs[col]}</th>`;});
+  visibleCols.forEach(col=>{html+=`<th>${escapeHtml(COLUMN_DEFS[col]?.label||'')}</th>`;});
   html+=`</tr></thead><tbody>`;
   rows.forEach(r=>{
-    const days=daysLeft(r.expiry);const s=statusOf(days,ad,r.expiry,r.selling_tolerance);
+    const s=statusOf(r.days,ad,r.expiry,r.selling_tolerance);
     // 期限切れ行はピンク、警告行はオレンジ背景
     const bg=s==='expired'?'background:#fde8e8;':s==='warn'?'background:#fef3e2;':'';
-    html+=`<tr style="${bg}">`;
-    visibleCols.forEach(col=>{
-      switch(col){
-        case 0:html+=`<td style="text-align:center">${r.checked?'✓':''}</td>`;break;
-        case 2:html+=`<td>${r.aisle}</td>`;break;
-        case 4:html+=`<td style="font-family:monospace">${r.own_code}</td>`;break;
-        case 5:html+=`<td>${r.name}</td>`;break;
-        case 7:html+=`<td>${r.expiry}</td>`;break;
-        case 8:html+=`<td style="text-align:center">${r.expired_qty>0?r.expired_qty+'個':'—'}</td>`;break;
-        case 10:html+=`<td style="text-align:center">${days}日</td>`;break;
-        case 11:html+=`<td>${r.discount_location||'—'}</td>`;break;
-      }
-    });
+    html+=`<tr class="print-main-row" style="${bg}">`;
+    visibleCols.forEach(col=>{html+=printCellHtml(r,col,ad);});
+    html+=`</tr>`;
+    html+=`<tr class="print-barcode-row" style="${bg}">`;
+    for(let i=0;i<spacerCount;i++)html+=`<td class="print-barcode-spacer"></td>`;
+    html+=`<td class="print-barcode-cell" colspan="${barcodeColspan}">${barcodeSvgForPrint(r.jan)}</td>`;
     html+=`</tr>`;
   });
   html+=`</tbody></table>`;
