@@ -392,7 +392,7 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
       <h3>自社コードを入力、または右の「バーコードボタン」を押してJANを読みとって下さい</h3>
       <!-- コード入力行：手入力 / バーコードカメラ / 棚札OCR の3方法を選べる -->
       <div class="jan-row">
-        <div class="scouter-wrap scouter-scan"><input type="text" id="jan-input" placeholder="スキャン or 入力" inputmode="numeric" /></div>
+        <div style="flex:1;"><div class="scouter-wrap scouter-scan"><input type="text" id="jan-input" placeholder="スキャン or 入力" inputmode="numeric" /></div></div>
         <button onclick="toggleCamera()">📷 バーコード</button>
         <button onclick="toggleOCR()">🔤 棚札OCR</button>
         <button onclick="lookupJAN()">検索</button>
