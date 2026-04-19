@@ -1040,6 +1040,7 @@ async function lookupJAN(){
   document.getElementById('m-own').textContent=data.own_code;
   document.getElementById('m-jan').textContent=data.jan;
   document.getElementById('master-result').style.display='block';
+  renderList();// マスター呼び出し時に一覧を同JANコードで絞り込む
 
   // 通路が選択済みなら既存の登録データを引いてフォームに自動入力
   const aisle=document.getElementById('reg-aisle').value;
@@ -1223,6 +1224,7 @@ function clearForm(){
   setRegisterDiscountValue('');
   document.getElementById('reg-selloff-method').value='';
   document.getElementById('reg-buttoshi').value='';
+  renderList();// クリア時に一覧を通常表示に戻す
 }
 
 // ============================================================
