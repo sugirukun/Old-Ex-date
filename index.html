@@ -1,5 +1,6 @@
 <!-- ============================================================
-  賞味期限管理アプリ v2.0
+  賞味期限管理アプリ v3.1
+  
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
   ・<style>タグ  → 見た目（色・サイズ・レイアウト）の設定
@@ -1664,7 +1665,7 @@ function renderList(){
     // 1行分のHTMLを生成（テンプレートリテラルで組み立て）
     return`<tr class="${r.checked?'checked-row':''}${bulkMode&&bulkSelected.has(r.id)?' bulk-selected':''}">
       ${bulkMode&&!r.is_archive?`<td data-col="sel" style="text-align:center"><input type="checkbox" ${bulkSelected.has(r.id)?'checked':''} onchange="toggleBulkRow('${r.id}',this.checked)" style="width:18px;height:18px;accent-color:#185FA5;cursor:pointer;"></td>`:'<td data-col="sel" style="display:none"></td>'}
-      <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
+      <td data-col="0" style="text-align:center;${bulkMode?'display:none;':''}"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',${r.checked})"></td>
       <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
       <td data-col="2"><span class="badge badge-gray">${r.aisle}</span></td>
       <td data-col="3"><span class="jan-code">${r.jan}</span></td>
@@ -1813,6 +1814,11 @@ function toggleBulkMode(){
   if(thSel)thSel.style.display=bulkMode?'':'none';
   const cbAll=document.getElementById('bulk-select-all');
   if(cbAll)cbAll.checked=false;
+  // 一括モード中は「済」チェックボックス列を非表示にする
+  const table=document.querySelector('#panel-list .table-wrap table');
+  if(table){
+    table.querySelectorAll('[data-col="0"]').forEach(el=>{el.style.display=bulkMode?'none':'';});
+  }
 
   // アクションバーの通路セレクトボックスを構築（初回のみ）
   const aisleSelect=document.getElementById('bulk-aisle-select');
