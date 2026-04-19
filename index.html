@@ -515,6 +515,10 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
 
   <!-- ===== 一覧・確認パネル ===== -->
   <div id="panel-list">
+    <!-- マスター絞り込み中バナー -->
+    <div id="master-filter-banner" style="display:none;padding:8px 16px;background:#e8f0fe;border-left:4px solid #185FA5;font-size:13px;color:#185FA5;font-weight:500;">
+      🔍 <span id="master-filter-label"></span>の登録データを表示中
+    </div>
     <div style="padding:12px 16px 4px;font-size:14px;font-weight:600;color:#555;background:#fff;border-top:3px solid #185FA5;border-bottom:1px solid #eee;">一覧・確認</div>
 
     <!-- サマリー統計（4マスのカード） -->
@@ -1041,6 +1045,8 @@ async function lookupJAN(){
   document.getElementById('m-jan').textContent=data.jan;
   document.getElementById('master-result').style.display='block';
   renderList();// マスター呼び出し時に一覧を同JANコードで絞り込む
+  // 一覧パネルへ自動スクロール
+  setTimeout(()=>document.getElementById('panel-list')?.scrollIntoView({behavior:'smooth'}),100);
 
   // 通路が選択済みなら既存の登録データを引いてフォームに自動入力
   const aisle=document.getElementById('reg-aisle').value;
@@ -1701,6 +1707,18 @@ function renderList(){
   document.getElementById('s-done').textContent=done;
   // 進捗バーの幅を「確認済み÷総数」で計算
   document.getElementById('s-prog').style.width=listData.length?Math.round(done/listData.length*100)+'%':'0%';
+
+  // マスター絞り込みバナーの制御
+  const banner=document.getElementById('master-filter-banner');
+  const bannerLabel=document.getElementById('master-filter-label');
+  if(banner){
+    if(currentMaster){
+      bannerLabel.textContent=currentMaster.name;
+      banner.style.display='block';
+    }else{
+      banner.style.display='none';
+    }
+  }
 
   // テーブルの行を生成してtbodyに挿入
   const tbody=document.getElementById('tbody');
