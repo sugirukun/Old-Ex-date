@@ -1,4 +1,6 @@
 <!-- ============================================================
+  賞味期限管理アプリ v2.0
+  作成経緯：バイブコーディング × Claude によって段階的に構築
   
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
@@ -1286,6 +1288,17 @@ function getFilteredSortedRows(){
   const ad=alertDays;
   const sq=(document.getElementById('filter-search')?.value||'').trim().toLowerCase();
   let rows=listData.map(r=>({...r,days:daysLeft(r.expiry)}));
+
+  // マスター呼び出し中は同じJANコードのみ全期間表示（フィルター無視）
+  if(currentMaster){
+    rows=rows.filter(r=>r.jan===currentMaster.jan);
+    rows.sort((a,b)=>{
+      let av=a[sortKey],bv=b[sortKey];
+      if(['expiry','registered_at'].includes(sortKey)){av=new Date(av);bv=new Date(bv);}
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+    return rows;
+  }
 
   if(sq&&sq.length>=2){
     if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
