@@ -1677,7 +1677,8 @@ async function checkConfirmAction(allDone){
     item.expired_qty=0;
     await doArchiveItem(id);
   }
-  // いいえの場合は何もしない（チェックはつけない）
+  // いいえの場合はチェックボックスを元の状態に戻す
+  if(!allDone) renderList();
 }
 
 // ============================================================
