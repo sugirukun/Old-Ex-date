@@ -1044,6 +1044,12 @@ async function lookupJAN(){
   document.getElementById('m-own').textContent=data.own_code;
   document.getElementById('m-jan').textContent=data.jan;
   document.getElementById('master-result').style.display='block';
+
+  // バナーを直接表示（renderListに依存しない）
+  const _banner=document.getElementById('master-filter-banner');
+  const _bannerLabel=document.getElementById('master-filter-label');
+  if(_banner&&_bannerLabel){_bannerLabel.textContent=data.name;_banner.style.display='block';}
+
   renderList();// マスター呼び出し時に一覧を同JANコードで絞り込む
   // 一覧パネルへ自動スクロール
   setTimeout(()=>document.getElementById('panel-list')?.scrollIntoView({behavior:'smooth'}),100);
