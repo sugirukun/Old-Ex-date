@@ -1691,6 +1691,10 @@ function renderList(){
     </tr>`;
   }).join('');
   applyColVisibility();// 非表示列を適用
+  // 一括モード中は済列を applyColVisibility の後から強制で上書き
+  document.querySelectorAll('#panel-list [data-col="0"]').forEach(el=>{
+    el.style.display=bulkMode?'none':'';
+  });
 }
 
 // ============================================================
