@@ -1870,14 +1870,50 @@ async function doBulkAisleChange(){
   if(!aisle){toast('変更先の通路を選択してください');return;}
   const ids=[...bulkSelected];
   if(!ids.length){toast('商品を選択してください');return;}
-  if(!confirm(`選択した${ids.length}件の通路を「${aisle}」に変更します。よろしいですか？`))return;
+
+  // 重複チェック：変更後に同じ通路・同じ賞味期限になる組み合わせを検出
+  const selectedRecords=listData.filter(r=>bulkSelected.has(r.id));
+  const otherRecords=listData.filter(r=>!bulkSelected.has(r.id)&&!r.is_archive);
+  const seen=new Set();
+  const duplicates=[];
+  selectedRecords.forEach(sel=>{
+    const key=`${sel.jan}__${sel.expiry}`;
+    if(seen.has(key))return;
+    // 選択外のレコードに変更後と同じjan・通路・賞味期限があるか
+    const hitOther=otherRecords.find(o=>o.jan===sel.jan&&o.expiry===sel.expiry&&o.aisle===aisle);
+    const hitSelf=selectedRecords.filter(s=>s.jan===sel.jan&&s.expiry===sel.expiry).length>1;
+    if(hitSelf){
+      seen.add(key);
+      duplicates.push({name:sel.name,expiry:sel.expiry,type:'self'});
+    }else if(hitOther){
+      seen.add(key);
+      duplicates.push({name:sel.name,expiry:sel.expiry,type:'other'});
+    }
+  });
+
+  if(duplicates.length>0){
+    const selfDups=duplicates.filter(d=>d.type==='self');
+    const otherDups=duplicates.filter(d=>d.type==='other');
+    let msg='';
+    if(selfDups.length>0){
+      msg+=`⚠️ 選択した商品の中に重複があります：\n${selfDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
+    }
+    if(otherDups.length>0){
+      msg+=`📌 変更先の通路に既に同じ商品があります：\n${otherDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
+    }
+    msg+='このまま変更しますか？';
+    if(!confirm(msg))return;
+  }else{
+    if(!confirm(`選択した${ids.length}件の通路を「${aisle}」に変更します。よろしいですか？`))return;
+  }
+
   showLoading(true);
   const{error}=await sb.from('expiry_records').update({aisle}).in('id',ids);
   showLoading(false);
   if(error){toast('更新に失敗しました：'+error.message);return;}
   toast(`${ids.length}件の通路を「${aisle}」に変更しました`);
-  toggleBulkMode();// モード終了
-  loadList();// 一覧を再読み込み
+  toggleBulkMode();
+  loadList();
 }
 
 // ============================================================
