@@ -1,5 +1,6 @@
 <!-- ============================================================
-  賞味期限管理アプリ v3.1
+  賞味期限管理アプリ v2.0
+  作成経緯：バイブコーディング × Claude によって段階的に構築
   
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
@@ -1452,12 +1453,16 @@ function applyColVisibility(){
   table.querySelectorAll('thead th[data-col]').forEach(th=>{
     const colAttr=th.getAttribute('data-col');if(colAttr==='del'||colAttr==='sel')return;
     const col=parseInt(colAttr);if(isNaN(col))return;
+    // 一括モード中は「済」列(col=0)を非表示
+    if(bulkMode&&col===0){th.style.display='none';return;}
     th.style.display=hiddenCols.has(col)?'none':'';
   });
   table.querySelectorAll('tbody tr').forEach(row=>{
     row.querySelectorAll('td[data-col]').forEach(td=>{
       const colAttr=td.getAttribute('data-col');if(colAttr==='del'||colAttr==='sel')return;
       const col=parseInt(colAttr);if(isNaN(col))return;
+      // 一括モード中は「済」列(col=0)を非表示
+      if(bulkMode&&col===0){td.style.display='none';return;}
       td.style.display=hiddenCols.has(col)?'none':'';
     });
   });
