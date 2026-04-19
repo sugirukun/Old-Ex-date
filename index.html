@@ -1813,21 +1813,91 @@ async function updateSelloffMethod(id,value){
   toast('売り切り方法を更新しました');
 }
 
+// 一括削除のlocalStorage管理ユーティリティ
+function getDeleteStats(){
+  const today=todayStr();
+  const raw=localStorage.getItem('bulkDeleteStats');
+  if(raw){
+    const data=JSON.parse(raw);
+    if(data.date===today)return data;
+  }
+  return{date:today,count:0,total:0};
+}
+function saveDeleteStats(stats){
+  localStorage.setItem('bulkDeleteStats',JSON.stringify(stats));
+}
+
 // 選択した全レコードを一括削除する
 async function doBulkDelete(){
   const ids=[...bulkSelected];
   if(!ids.length){toast('商品を選択してください');return;}
-  if(!confirm(`選択した${ids.length}件を完全に削除します。\nこの操作は取り消せません。よろしいですか？`))return;
-  showLoading(true);
-  // 現役レコードと履歴レコードを分けて削除
-  const archiveIds=listData.filter(r=>bulkSelected.has(r.id)&&r.is_archive).map(r=>r.id);
-  const recordIds=listData.filter(r=>bulkSelected.has(r.id)&&!r.is_archive).map(r=>r.id);
-  if(recordIds.length){await sb.from('expiry_records').delete().in('id',recordIds);}
-  if(archiveIds.length){await sb.from('expiry_archives').delete().in('id',archiveIds);}
-  showLoading(false);
-  toast(`${ids.length}件を削除しました`,3000);
-  toggleBulkMode();
-  loadList();
+
+  // 制限チェック
+  const stats=getDeleteStats();
+  if(stats.count>=5){
+    document.getElementById('dialog-title').textContent='🚫 削除制限に達しました';
+    document.getElementById('dialog-msg').textContent=
+      '本日の削除回数が上限（5回）に達しました。\n削除できるのは1日5回までです。\n\n明日以降に再度お試しください。';
+    const b1=document.getElementById('dialog-btn1');
+    const b2=document.getElementById('dialog-btn2');
+    const bc=document.getElementById('dialog-cancel');
+    b1.style.display='none';
+    b2.style.display='none';
+    bc.style.display='';
+    bc.textContent='閉じる';
+    bc.onclick=()=>{
+      closeDialog();
+      b1.style.display='';b2.style.display='';
+      bc.textContent='登録しない';bc.onclick=null;
+    };
+    document.getElementById('dialog-overlay').classList.add('show');
+    return;
+  }
+  if(ids.length>5){
+    toast('一度に削除できるのは5件までです');return;
+  }
+  if(stats.total+ids.length>25){
+    toast(`本日の削除件数が上限に近づいています。残り${25-stats.total}件まで削除できます`);return;
+  }
+
+  // 確認ダイアログ
+  const selectedRecords=listData.filter(r=>bulkSelected.has(r.id));
+  const itemList=selectedRecords.map(r=>`・${r.name}（${r.expiry}）`).join('\n');
+  const nextCount=stats.count+1;
+  const nextTotal=stats.total+ids.length;
+
+  return new Promise(resolve=>{
+    document.getElementById('dialog-title').textContent='🚨 完全削除の確認';
+    document.getElementById('dialog-msg').textContent=
+      `以下${ids.length}件を削除します。この操作は取り消せません：\n${itemList}\n\n⚠️ 本日の削除回数：${nextCount}/5回\n⚠️ 本日の削除件数：${nextTotal}/25件`;
+    const b1=document.getElementById('dialog-btn1');
+    const b2=document.getElementById('dialog-btn2');
+    const bc=document.getElementById('dialog-cancel');
+    b1.textContent='🗑 削除する';
+    b1.className='dialog-btn dialog-btn-red';
+    b1.style.display='';
+    b1.onclick=async()=>{
+      closeDialog();
+      b2.style.display='';
+      showLoading(true);
+      const archiveIds=selectedRecords.filter(r=>r.is_archive).map(r=>r.id);
+      const recordIds=selectedRecords.filter(r=>!r.is_archive).map(r=>r.id);
+      if(recordIds.length)await sb.from('expiry_records').delete().in('id',recordIds);
+      if(archiveIds.length)await sb.from('expiry_archives').delete().in('id',archiveIds);
+      showLoading(false);
+      // 削除統計を更新
+      stats.count+=1;stats.total+=ids.length;saveDeleteStats(stats);
+      toast(`${ids.length}件を削除しました（本日${stats.count}回目）`,3000);
+      toggleBulkMode();loadList();
+      resolve();
+    };
+    b2.textContent='キャンセル';
+    b2.className='dialog-btn dialog-btn-gray';
+    b2.style.display='';
+    b2.onclick=()=>{closeDialog();resolve();};
+    bc.style.display='none';
+    document.getElementById('dialog-overlay').classList.add('show');
+  });
 }
 
 // ============================================================
@@ -1901,7 +1971,10 @@ function updateBulkBar(){
   const n=bulkSelected.size;
   document.getElementById('bulk-count').textContent=n+'件選択中';
   document.getElementById('btn-bulk-apply').disabled=(n===0);
-  document.getElementById('btn-bulk-delete').disabled=(n===0);
+  // 削除ボタン：0件・5件超・全件選択時は無効
+  const visibleRows=getFilteredSortedRows().filter(r=>!r.is_archive);
+  const isAllSelected=visibleRows.length>0&&visibleRows.every(r=>bulkSelected.has(r.id));
+  document.getElementById('btn-bulk-delete').disabled=(n===0||n>5||isAllSelected);
 }
 
 // 選択した全レコードの通路をSupabaseで一括UPDATE
