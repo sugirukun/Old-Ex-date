@@ -1051,8 +1051,6 @@ async function lookupJAN(){
   if(_banner&&_bannerLabel){_bannerLabel.textContent=data.name;_banner.style.display='block';}
 
   renderList();// マスター呼び出し時に一覧を同JANコードで絞り込む
-  // 一覧パネルへ自動スクロール
-  setTimeout(()=>document.getElementById('panel-list')?.scrollIntoView({behavior:'smooth'}),100);
 
   // 通路が選択済みなら既存の登録データを引いてフォームに自動入力
   const aisle=document.getElementById('reg-aisle').value;
