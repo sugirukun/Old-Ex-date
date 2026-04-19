@@ -1865,66 +1865,116 @@ function updateBulkBar(){
 }
 
 // 選択した全レコードの通路をSupabaseで一括UPDATE
+// 重複ダイアログをPromiseで返すヘルパー
+function showDupChoiceDialog(dupMsg,skipCount,safeCount){
+  return new Promise(resolve=>{
+    document.getElementById('dialog-title').textContent='重複が見つかりました';
+    document.getElementById('dialog-msg').textContent=
+      dupMsg+`\nマージ：重複分の個数を合算して1件にまとめます\nスキップ：重複はそのままにして残り${safeCount}件だけ変更します`;
+    const b1=document.getElementById('dialog-btn1');
+    const b2=document.getElementById('dialog-btn2');
+    const bc=document.getElementById('dialog-cancel');
+    b1.textContent=`すべてマージ（個数合算）`;
+    b1.className='dialog-btn dialog-btn-blue';
+    b1.onclick=()=>{closeDialog();resolve('merge');};
+    b2.textContent=`重複をスキップして続行`;
+    b2.className='dialog-btn dialog-btn-gray';
+    b2.onclick=()=>{closeDialog();resolve('skip');};
+    bc.style.display='';
+    bc.textContent='キャンセル（何も変更しない）';
+    bc.onclick=()=>{closeDialog();resolve('cancel');};
+    document.getElementById('dialog-overlay').classList.add('show');
+  });
+}
+
 async function doBulkAisleChange(){
   const aisle=document.getElementById('bulk-aisle-select').value;
   if(!aisle){toast('変更先の通路を選択してください');return;}
   const ids=[...bulkSelected];
   if(!ids.length){toast('商品を選択してください');return;}
 
-  // 重複チェック：スキップすべきIDと警告メッセージを収集
   const selectedRecords=listData.filter(r=>bulkSelected.has(r.id));
   const otherRecords=listData.filter(r=>!bulkSelected.has(r.id)&&!r.is_archive);
-  const skipIds=new Set();
-  const selfDups=[],otherDups=[];
 
-  // 選択内の重複：同じjan+expiryが複数選ばれていたら2件目以降をスキップ
-  const seenInSel=new Map();// key→最初のID
+  // --- 重複チェック ---
+  // selfDupGroups: 選択内で同じjan+expiryのグループ（2件以上）
+  const selGroups=new Map();
   selectedRecords.forEach(sel=>{
     const key=`${sel.jan}__${sel.expiry}`;
-    if(seenInSel.has(key)){
-      skipIds.add(sel.id);
-      if(!selfDups.find(d=>d.key===key))selfDups.push({key,name:sel.name,expiry:sel.expiry});
+    if(!selGroups.has(key))selGroups.set(key,[]);
+    selGroups.get(key).push(sel);
+  });
+  const selfDupGroups=[...selGroups.values()].filter(g=>g.length>1);
+
+  // otherDupPairs: 選択レコードと変更先通路の既存レコードが被るペア
+  // (selfDupで既に対象になっているものは除く)
+  const selfDupIds=new Set(selfDupGroups.flatMap(g=>g.slice(1).map(r=>r.id)));
+  const otherDupPairs=[];// {sel, existing}
+  selectedRecords.forEach(sel=>{
+    if(selfDupIds.has(sel.id))return;
+    const existing=otherRecords.find(o=>o.jan===sel.jan&&o.expiry===sel.expiry&&o.aisle===aisle);
+    if(existing)otherDupPairs.push({sel,existing});
+  });
+
+  const hasDup=selfDupGroups.length>0||otherDupPairs.length>0;
+
+  if(hasDup){
+    // 警告メッセージ組み立て
+    let dupMsg='';
+    if(selfDupGroups.length>0){
+      dupMsg+=`⚠️ 選択内に重複があります：\n${selfDupGroups.map(g=>`・${g[0].name}（${g[0].expiry}）× ${g.length}件`).join('\n')}\n\n`;
+    }
+    if(otherDupPairs.length>0){
+      dupMsg+=`📌 変更先の通路に既に同じ商品があります：\n${otherDupPairs.map(p=>`・${p.sel.name}（${p.sel.expiry}）`).join('\n')}\n\n`;
+    }
+    const skipCount=selfDupIds.size+otherDupPairs.length;
+    const safeCount=ids.length-skipCount;
+    const choice=await showDupChoiceDialog(dupMsg,skipCount,safeCount);
+    if(choice==='cancel')return;
+
+    showLoading(true);
+    if(choice==='merge'){
+      // selfDupGroups: 先頭1件に qty を合算し通路変更、残りは削除
+      for(const group of selfDupGroups){
+        const totalQty=group.reduce((s,r)=>s+(parseInt(r.expired_qty)||0),0);
+        const keep=group[0];
+        const delIds=group.slice(1).map(r=>r.id);
+        await sb.from('expiry_records').update({aisle,expired_qty:totalQty}).eq('id',keep.id);
+        for(const did of delIds)await sb.from('expiry_records').delete().eq('id',did);
+      }
+      // otherDupPairs: 既存レコードに qty を合算、選択レコードを削除
+      for(const{sel,existing}of otherDupPairs){
+        const totalQty=(parseInt(existing.expired_qty)||0)+(parseInt(sel.expired_qty)||0);
+        await sb.from('expiry_records').update({expired_qty:totalQty}).eq('id',existing.id);
+        await sb.from('expiry_records').delete().eq('id',sel.id);
+      }
+      // 残りの通常レコードを通路変更
+      const mergedSkipIds=new Set([...selfDupIds,...otherDupPairs.map(p=>p.sel.id)]);
+      const safeIds=ids.filter(id=>!mergedSkipIds.has(id));
+      if(safeIds.length){await sb.from('expiry_records').update({aisle}).in('id',safeIds);}
+      showLoading(false);
+      toast(`マージ完了・通路を「${aisle}」に変更しました`,3500);
     }else{
-      seenInSel.set(key,sel.id);
+      // skip: 重複を除いた分だけ通路変更
+      const skipIds=new Set([...selfDupIds,...otherDupPairs.map(p=>p.sel.id)]);
+      const safeIds=ids.filter(id=>!skipIds.has(id));
+      if(safeIds.length){
+        const{error}=await sb.from('expiry_records').update({aisle}).in('id',safeIds);
+        if(error){showLoading(false);toast('更新に失敗しました：'+error.message);return;}
+      }
+      showLoading(false);
+      toast(`${safeIds.length}件を「${aisle}」に変更しました（${skipIds.size}件はスキップ）`,3500);
     }
-  });
-
-  // 選択外との重複：変更先通路に既に同じjan+expiryがある場合スキップ
-  selectedRecords.forEach(sel=>{
-    if(skipIds.has(sel.id))return;
-    const key=`${sel.jan}__${sel.expiry}`;
-    const hit=otherRecords.find(o=>o.jan===sel.jan&&o.expiry===sel.expiry&&o.aisle===aisle);
-    if(hit){
-      skipIds.add(sel.id);
-      if(!otherDups.find(d=>d.key===key))otherDups.push({key,name:sel.name,expiry:sel.expiry});
-    }
-  });
-
-  // 確認ダイアログ
-  if(selfDups.length>0||otherDups.length>0){
-    let msg='';
-    if(selfDups.length>0){
-      msg+=`⚠️ 選択した商品の中に重複があります（2件目以降はスキップ）：\n${selfDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
-    }
-    if(otherDups.length>0){
-      msg+=`📌 変更先の通路に既に同じ商品があります（スキップ）：\n${otherDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
-    }
-    const safeCount=ids.length-skipIds.size;
-    msg+=`スキップ：${skipIds.size}件　変更：${safeCount}件\nこのまま変更しますか？`;
-    if(!confirm(msg))return;
   }else{
+    // 重複なし：通常の確認
     if(!confirm(`選択した${ids.length}件の通路を「${aisle}」に変更します。よろしいですか？`))return;
+    showLoading(true);
+    const{error}=await sb.from('expiry_records').update({aisle}).in('id',ids);
+    showLoading(false);
+    if(error){toast('更新に失敗しました：'+error.message);return;}
+    toast(`${ids.length}件の通路を「${aisle}」に変更しました`);
   }
 
-  // スキップを除いたIDだけ更新
-  const safeIds=ids.filter(id=>!skipIds.has(id));
-  if(!safeIds.length){toast('変更できる商品がありませんでした');return;}
-  showLoading(true);
-  const{error}=await sb.from('expiry_records').update({aisle}).in('id',safeIds);
-  showLoading(false);
-  if(error){toast('更新に失敗しました：'+error.message);return;}
-  const skipMsg=skipIds.size>0?`（${skipIds.size}件はスキップ）`:'';
-  toast(`${safeIds.length}件の通路を「${aisle}」に変更しました${skipMsg}`,3500);
   toggleBulkMode();
   loadList();
 }
