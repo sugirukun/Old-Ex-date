@@ -1778,16 +1778,19 @@ function renderList(){
   const ad=alertDays;// 賞味期限切れまでの日数フィルター値
   const rows=getFilteredSortedRows();
 
-  // 統計カードの数値を更新（listData全体を集計。フィルターに関係なく全件カウント）
-  const exp=listData.filter(r=>!r.is_archive&&daysLeft(r.expiry)<0).length;// 期限切れ数
-  const warn=listData.filter(r=>{if(r.is_archive)return false;const d=daysLeft(r.expiry);return statusOf(d,ad,r.expiry,r.selling_tolerance)==='warn';}).length;// 警告圏内数
-  const done=listData.filter(r=>r.checked).length;// 確認済み数
-  document.getElementById('s-total').textContent=listData.length;
+  // 統計カードの集計：店長は全件、それ以外は自部門のみ
+  const statsData=currentDept==='店長'
+    ? listData
+    : listData.filter(r=>r.department===currentDept);
+  const exp=statsData.filter(r=>!r.is_archive&&daysLeft(r.expiry)<0).length;
+  const warn=statsData.filter(r=>{if(r.is_archive)return false;const d=daysLeft(r.expiry);return statusOf(d,ad,r.expiry,r.selling_tolerance)==='warn';}).length;
+  const done=statsData.filter(r=>r.checked).length;
+  document.getElementById('s-total').textContent=statsData.length;
   document.getElementById('s-expired').textContent=exp;
   document.getElementById('s-warn').textContent=warn;
   document.getElementById('s-done').textContent=done;
   // 進捗バーの幅を「確認済み÷総数」で計算
-  document.getElementById('s-prog').style.width=listData.length?Math.round(done/listData.length*100)+'%':'0%';
+  document.getElementById('s-prog').style.width=statsData.length?Math.round(done/statsData.length*100)+'%':'0%';
 
   // マスター絞り込みバナーの制御
   const banner=document.getElementById('master-filter-banner');
