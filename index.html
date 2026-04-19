@@ -1871,47 +1871,60 @@ async function doBulkAisleChange(){
   const ids=[...bulkSelected];
   if(!ids.length){toast('商品を選択してください');return;}
 
-  // 重複チェック：変更後に同じ通路・同じ賞味期限になる組み合わせを検出
+  // 重複チェック：スキップすべきIDと警告メッセージを収集
   const selectedRecords=listData.filter(r=>bulkSelected.has(r.id));
   const otherRecords=listData.filter(r=>!bulkSelected.has(r.id)&&!r.is_archive);
-  const seen=new Set();
-  const duplicates=[];
+  const skipIds=new Set();
+  const selfDups=[],otherDups=[];
+
+  // 選択内の重複：同じjan+expiryが複数選ばれていたら2件目以降をスキップ
+  const seenInSel=new Map();// key→最初のID
   selectedRecords.forEach(sel=>{
     const key=`${sel.jan}__${sel.expiry}`;
-    if(seen.has(key))return;
-    // 選択外のレコードに変更後と同じjan・通路・賞味期限があるか
-    const hitOther=otherRecords.find(o=>o.jan===sel.jan&&o.expiry===sel.expiry&&o.aisle===aisle);
-    const hitSelf=selectedRecords.filter(s=>s.jan===sel.jan&&s.expiry===sel.expiry).length>1;
-    if(hitSelf){
-      seen.add(key);
-      duplicates.push({name:sel.name,expiry:sel.expiry,type:'self'});
-    }else if(hitOther){
-      seen.add(key);
-      duplicates.push({name:sel.name,expiry:sel.expiry,type:'other'});
+    if(seenInSel.has(key)){
+      skipIds.add(sel.id);
+      if(!selfDups.find(d=>d.key===key))selfDups.push({key,name:sel.name,expiry:sel.expiry});
+    }else{
+      seenInSel.set(key,sel.id);
     }
   });
 
-  if(duplicates.length>0){
-    const selfDups=duplicates.filter(d=>d.type==='self');
-    const otherDups=duplicates.filter(d=>d.type==='other');
+  // 選択外との重複：変更先通路に既に同じjan+expiryがある場合スキップ
+  selectedRecords.forEach(sel=>{
+    if(skipIds.has(sel.id))return;
+    const key=`${sel.jan}__${sel.expiry}`;
+    const hit=otherRecords.find(o=>o.jan===sel.jan&&o.expiry===sel.expiry&&o.aisle===aisle);
+    if(hit){
+      skipIds.add(sel.id);
+      if(!otherDups.find(d=>d.key===key))otherDups.push({key,name:sel.name,expiry:sel.expiry});
+    }
+  });
+
+  // 確認ダイアログ
+  if(selfDups.length>0||otherDups.length>0){
     let msg='';
     if(selfDups.length>0){
-      msg+=`⚠️ 選択した商品の中に重複があります：\n${selfDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
+      msg+=`⚠️ 選択した商品の中に重複があります（2件目以降はスキップ）：\n${selfDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
     }
     if(otherDups.length>0){
-      msg+=`📌 変更先の通路に既に同じ商品があります：\n${otherDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
+      msg+=`📌 変更先の通路に既に同じ商品があります（スキップ）：\n${otherDups.map(d=>`・${d.name}（${d.expiry}）`).join('\n')}\n\n`;
     }
-    msg+='このまま変更しますか？';
+    const safeCount=ids.length-skipIds.size;
+    msg+=`スキップ：${skipIds.size}件　変更：${safeCount}件\nこのまま変更しますか？`;
     if(!confirm(msg))return;
   }else{
     if(!confirm(`選択した${ids.length}件の通路を「${aisle}」に変更します。よろしいですか？`))return;
   }
 
+  // スキップを除いたIDだけ更新
+  const safeIds=ids.filter(id=>!skipIds.has(id));
+  if(!safeIds.length){toast('変更できる商品がありませんでした');return;}
   showLoading(true);
-  const{error}=await sb.from('expiry_records').update({aisle}).in('id',ids);
+  const{error}=await sb.from('expiry_records').update({aisle}).in('id',safeIds);
   showLoading(false);
   if(error){toast('更新に失敗しました：'+error.message);return;}
-  toast(`${ids.length}件の通路を「${aisle}」に変更しました`);
+  const skipMsg=skipIds.size>0?`（${skipIds.size}件はスキップ）`:'';
+  toast(`${safeIds.length}件の通路を「${aisle}」に変更しました${skipMsg}`,3500);
   toggleBulkMode();
   loadList();
 }
