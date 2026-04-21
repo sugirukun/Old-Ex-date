@@ -1,7 +1,5 @@
 <!-- ============================================================
-  賞味期限管理アプリ v2.0
-  作成経緯：バイブコーディング × Claude によって段階的に構築
-  
+  賞味期限管理アプリ
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
   ・<style>タグ  → 見た目（色・サイズ・レイアウト）の設定
@@ -373,6 +371,7 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
     <input type="text" id="login-name" placeholder="担当者名（例：田中）" />
     <select id="login-dept" style="width:100%;font-size:16px;padding:12px 14px;border:1px solid #ddd;border-radius:10px;margin-bottom:12px;outline:none;background:#fff;color:#1a1a1a;-webkit-appearance:none;">
       <option value="">部門を選択してください</option>
+      <option value="システム管理者">システム管理者</option>
       <option value="店長">店長</option>
       <option value="1課（海産）">1課（海産）</option>
       <option value="2課（日配）">2課（日配）</option>
@@ -427,8 +426,37 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
     <span class="staff-badge" id="dept-disp" style="background:#e8f0fe;color:#185FA5;"></span>
     <span class="staff-badge" id="interval-disp" style="background:#e8f5e9;color:#1e8449;"></span>
     <span class="staff-badge" id="tolerance-filter-disp" style="background:#fff3cd;color:#856404;"></span>
+    <button id="btn-alias-mgr" onclick="toggleAliasPanel()" style="display:none;padding:6px 12px;border:1px solid #7c3aed;border-radius:8px;background:#f5f3ff;color:#7c3aed;font-size:13px;cursor:pointer;font-weight:500;">🔧 別JAN管理</button>
     <button onclick="showPrintOptions()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;">🖨 印刷</button>
     <button onclick="doLogout()" style="padding:6px 12px;border:1px solid #e8b4b4;border-radius:8px;background:#fff5f5;color:#c0392b;font-size:13px;cursor:pointer;font-weight:500;">ログアウト</button>
+  </div>
+
+  <!-- ===== 別JAN管理パネル（システム管理者専用）===== -->
+  <div id="alias-panel" style="display:none;background:#fff;border-bottom:3px solid #7c3aed;padding:16px;">
+    <div style="font-size:14px;font-weight:600;color:#7c3aed;margin-bottom:12px;">🔧 別JANコード管理</div>
+    <!-- 追加フォーム -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input id="alias-jan-input" type="text" placeholder="別JANコード" inputmode="numeric" style="font-size:14px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;width:160px;" />
+      <input id="alias-master-input" type="text" placeholder="代表JANコード（productsのJAN）" inputmode="numeric" style="font-size:14px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:200px;" />
+      <input id="alias-note-input" type="text" placeholder="メモ（任意）" style="font-size:14px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;flex:1;min-width:120px;" />
+      <button onclick="addAlias()" style="padding:8px 16px;border:none;border-radius:8px;background:#7c3aed;color:#fff;font-size:13px;cursor:pointer;white-space:nowrap;">追加</button>
+    </div>
+    <!-- 一覧テーブル -->
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f5f3ff;">
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e9d5ff;">別JANコード</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e9d5ff;">代表JANコード</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e9d5ff;">商品名</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e9d5ff;">メモ</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e9d5ff;">登録日</th>
+            <th style="padding:8px 12px;border-bottom:2px solid #e9d5ff;">削除</th>
+          </tr>
+        </thead>
+        <tbody id="alias-tbody"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- ===== 商品登録パネル ===== -->
@@ -881,6 +909,9 @@ function doLogin(){
   document.getElementById('reg-date').value=todayStr();
 
   buildAisleSelect();// 通路セレクトボックスを構築
+  // システム管理者ボタンの表示制御
+  const aliasBtn=document.getElementById('btn-alias-mgr');
+  if(aliasBtn)aliasBtn.style.display=d==='システム管理者'?'':'none';
   loadList();        // Supabaseからデータを取得して一覧を表示
 }
 
@@ -1075,6 +1106,15 @@ async function lookupJAN(){
   // まずJANコードで検索、見つからなければ自社コードで再検索
   let {data,error}=await sb.from('products').select('*').eq('jan',code).single();
   if(error||!data){const res=await sb.from('products').select('*').eq('own_code',code).single();data=res.data;error=res.error;}
+  // それでも見つからなければjan_aliasesで別JANとして検索
+  if(error||!data){
+    const{data:alias}=await sb.from('jan_aliases').select('master_jan').eq('alias_jan',code).single();
+    if(alias){
+      const res=await sb.from('products').select('*').eq('jan',alias.master_jan).single();
+      data=res.data;error=res.error;
+      if(data)toast(`別JANコードとして認識：代表JAN ${alias.master_jan}`);
+    }
+  }
   showLoading(false);
   if(error||!data){toast('商品マスターに存在しません');return;}
 
@@ -1358,7 +1398,7 @@ function populateFilterSelects(){
   if(ca)as.value=ca;if(cc)cs.value=cc;
   // 部門絞り込みは店長ログイン時のみ表示する
   const deptFilterWrap=document.getElementById('dept-filter-wrap');
-  if(currentDept==='店長'){
+  if((currentDept==='店長'||currentDept==='システム管理者')){
     if(deptFilterWrap)deptFilterWrap.style.display='flex';
     if(currentDept&&!cd)ds.value='all';else if(cd)ds.value=cd;
   }else{if(deptFilterWrap)deptFilterWrap.style.display='none';ds.value=currentDept;}
@@ -1389,7 +1429,7 @@ function getFilteredSortedRows(){
   }
 
   if(sq&&sq.length>=2){
-    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+    if((currentDept!=='店長'&&currentDept!=='システム管理者'))rows=rows.filter(r=>r.department===currentDept);
     rows=rows.filter(r=>{
       if([r.name,r.aisle,r.category].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
       if(sq.length>=4&&[r.own_code,r.jan].some(v=>String(v||'').toLowerCase().includes(sq)))return true;
@@ -1402,7 +1442,7 @@ function getFilteredSortedRows(){
     const fd=document.getElementById('filter-dept').value;
     if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
     if(fc!=='all')rows=rows.filter(r=>r.category===fc);
-    if(currentDept!=='店長')rows=rows.filter(r=>r.department===currentDept);
+    if((currentDept!=='店長'&&currentDept!=='システム管理者'))rows=rows.filter(r=>r.department===currentDept);
     else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
     if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
     else if(fs==='stale')rows=rows.filter(r=>isStale(r));
@@ -1779,7 +1819,7 @@ function renderList(){
   const rows=getFilteredSortedRows();
 
   // 統計カードの集計：店長は全件、それ以外は自部門のみ
-  const statsData=currentDept==='店長'
+  const statsData=(currentDept==='店長'||currentDept==='システム管理者')
     ? listData
     : listData.filter(r=>r.department===currentDept);
   const exp=statsData.filter(r=>!r.is_archive&&daysLeft(r.expiry)<0).length;
@@ -2257,6 +2297,81 @@ async function doBulkAisleChange(){
 
   toggleBulkMode();
   loadList();
+}
+
+// ============================================================
+// 別JANコード管理（システム管理者専用）
+//
+// 【設計の背景】
+// 同一商品でも工場違い・リニューアル等により複数のJANコードが
+// 存在する場合がある（特にビール等）。
+//
+// 【jan_aliasesテーブルの位置づけ】
+// 本運用では B（自社サーバー）→ C（Supabase）の夜間同期スクリプトに
+// jan_aliasesの同期も組み込むことが理想。
+// B側に旧JAN→新JANの紐付けテーブルが存在する場合は自動同期可能。
+// B側にそのようなテーブルが存在しない場合は、このメニューから
+// システム管理者が手動で登録する。
+//
+// 【仮運用段階での扱い】
+// B側の構成が確認できるまでの暫定対応として、システム管理者が
+// Cに手動登録できるこのメニューを保険として残している。
+// ============================================================
+
+function toggleAliasPanel(){
+  const panel=document.getElementById('alias-panel');
+  const isOpen=panel.style.display!=='none';
+  panel.style.display=isOpen?'none':'block';
+  if(!isOpen)loadAliasList();
+}
+
+async function loadAliasList(){
+  const tbody=document.getElementById('alias-tbody');
+  tbody.innerHTML='<tr><td colspan="6" style="padding:12px;color:#888;text-align:center;">読み込み中...</td></tr>';
+  const{data,error}=await sb.from('jan_aliases')
+    .select('*, products!jan_aliases_master_jan_fkey(name)')
+    .order('created_at',{ascending:false});
+  if(error){tbody.innerHTML='<tr><td colspan="6" style="padding:12px;color:#e53;text-align:center;">読み込み失敗</td></tr>';return;}
+  if(!data.length){tbody.innerHTML='<tr><td colspan="6" style="padding:12px;color:#aaa;text-align:center;">登録なし</td></tr>';return;}
+  tbody.innerHTML=data.map(r=>`
+    <tr style="border-bottom:1px solid #f0f0f0;">
+      <td style="padding:8px 12px;font-family:monospace;">${r.alias_jan}</td>
+      <td style="padding:8px 12px;font-family:monospace;">${r.master_jan}</td>
+      <td style="padding:8px 12px;">${r.products?.name||'—'}</td>
+      <td style="padding:8px 12px;color:#888;">${r.note||'—'}</td>
+      <td style="padding:8px 12px;color:#888;font-size:11px;">${r.created_at?.slice(0,10)||'—'}</td>
+      <td style="padding:8px 12px;text-align:center;"><button onclick="deleteAlias('${r.id}')" style="background:none;border:none;font-size:16px;cursor:pointer;color:#e53;">🗑</button></td>
+    </tr>`).join('');
+}
+
+async function addAlias(){
+  const aliasJan=document.getElementById('alias-jan-input').value.trim();
+  const masterJan=document.getElementById('alias-master-input').value.trim();
+  const note=document.getElementById('alias-note-input').value.trim();
+  if(!aliasJan){toast('別JANコードを入力してください');return;}
+  if(!masterJan){toast('代表JANコードを入力してください');return;}
+  // 代表JANがproductsに存在するか確認
+  const{data:prod}=await sb.from('products').select('jan,name').eq('jan',masterJan).single();
+  if(!prod){toast('代表JANコードがマスターに存在しません');return;}
+  showLoading(true);
+  const{error}=await sb.from('jan_aliases').insert({alias_jan:aliasJan,master_jan:masterJan,note:note||null});
+  showLoading(false);
+  if(error){toast('追加失敗：'+error.message);return;}
+  toast(`「${prod.name}」の別JANを登録しました`);
+  document.getElementById('alias-jan-input').value='';
+  document.getElementById('alias-master-input').value='';
+  document.getElementById('alias-note-input').value='';
+  loadAliasList();
+}
+
+async function deleteAlias(id){
+  if(!confirm('この別JANを削除しますか？'))return;
+  showLoading(true);
+  const{error}=await sb.from('jan_aliases').delete().eq('id',id);
+  showLoading(false);
+  if(error){toast('削除失敗：'+error.message);return;}
+  toast('削除しました');
+  loadAliasList();
 }
 
 // ============================================================
