@@ -1,5 +1,6 @@
 <!-- ============================================================
-  賞味期限管理アプリ
+  賞味期限管理アプリ v3.4
+ 
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
   ・<style>タグ  → 見た目（色・サイズ・レイアウト）の設定
@@ -629,6 +630,10 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
       <span id="dept-filter-wrap" style="display:none;align-items:center;gap:8px;"><label>部門：</label><select id="filter-dept" onchange="renderList()"><option value="all">すべて</option></select></span>
       <label>カテゴリ：</label>
       <select id="filter-cat" onchange="renderList()"><option value="all">すべて</option></select>
+
+      <!-- 値下処理商品の場所フィルター -->
+      <label>値下場所：</label>
+      <select id="filter-discount-location" onchange="renderList()"><option value="all">すべて</option></select>
 
       <!-- 賞味期限切れまでの日数フィルター
            スライダーと数値入力ボックスが連動する。デフォルト365日（実質全件表示）
@@ -1388,14 +1393,19 @@ function populateFilterSelects(){
   const aisles=[...new Set(listData.map(d=>d.aisle))].sort((a,b)=>{const n1=parseInt(a),n2=parseInt(b);if(n1!==n2)return n1-n2;return a.slice(-1).localeCompare(b.slice(-1));});
   const cats=[...new Set(listData.map(d=>d.category))].sort();
   const depts=[...new Set(listData.map(d=>d.department).filter(d=>d&&d!=='—'))].sort();
+  // 値下処理商品の場所：空・null・'—' を除いてユニーク一覧を生成
+  const discLocs=[...new Set(listData.map(d=>d.discount_location).filter(v=>v&&v.trim()&&v!=='—'))].sort();
   const as=document.getElementById('filter-aisle'),cs=document.getElementById('filter-cat'),ds=document.getElementById('filter-dept');
+  const dls=document.getElementById('filter-discount-location');
   // 現在の選択値を保持して再セット（再描画後も絞り込みが維持されるように）
-  const ca=as.value,cc=cs.value,cd=ds.value;
+  const ca=as.value,cc=cs.value,cd=ds.value,cdl=dls?dls.value:'all';
   as.innerHTML='<option value="all">すべて</option>';cs.innerHTML='<option value="all">すべて</option>';ds.innerHTML='<option value="all">すべて</option>';
+  if(dls)dls.innerHTML='<option value="all">すべて</option>';
   aisles.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;as.appendChild(o);});
   cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);});
   depts.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;ds.appendChild(o);});
-  if(ca)as.value=ca;if(cc)cs.value=cc;
+  discLocs.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(dls)dls.appendChild(o);});
+  if(ca)as.value=ca;if(cc)cs.value=cc;if(dls&&cdl)dls.value=cdl;
   // 部門絞り込みは店長ログイン時のみ表示する
   const deptFilterWrap=document.getElementById('dept-filter-wrap');
   if((currentDept==='店長'||currentDept==='システム管理者')){
@@ -1440,8 +1450,10 @@ function getFilteredSortedRows(){
     const fa=document.getElementById('filter-aisle').value;
     const fc=document.getElementById('filter-cat').value;
     const fd=document.getElementById('filter-dept').value;
+    const fdl=(document.getElementById('filter-discount-location')?.value)||'all';
     if(fa!=='all')rows=rows.filter(r=>r.aisle===fa);
     if(fc!=='all')rows=rows.filter(r=>r.category===fc);
+    if(fdl!=='all')rows=rows.filter(r=>(r.discount_location||'').trim()===fdl);
     if((currentDept!=='店長'&&currentDept!=='システム管理者'))rows=rows.filter(r=>r.department===currentDept);
     else if(fd!=='all')rows=rows.filter(r=>r.department===fd);
     if(fs==='high_loss')rows=rows.filter(r=>r.high_expiry_flag);
@@ -2412,6 +2424,8 @@ function execLogout(hadWarn){
   alertDays=365;
   document.getElementById('alert-days-slider').value=365;
   document.getElementById('alert-days-num').value=365;
+  const _fdl=document.getElementById('filter-discount-location');
+  if(_fdl)_fdl.value='all';
   // 画面切り替え
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
