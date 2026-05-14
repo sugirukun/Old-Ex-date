@@ -2041,8 +2041,13 @@ async function checkConfirmAction(allDone){
     item.expired_qty=0;
     await doArchiveItem(id);
   }
-  // いいえの場合はチェックボックスを元の状態に戻す
-  if(!allDone) renderList();
+  // いいえの場合はチェックボックスを元の未チェック状態に戻す
+  if(!allDone){
+    // チェックボックスのDOM状態をOFFに戻す
+    const cb=document.querySelector(`input[onchange*="${id}"]`);
+    if(cb) cb.checked=false;
+    renderList();
+  }
 }
 
 // ============================================================
@@ -2182,7 +2187,7 @@ function renderList(){
     // 1行分のHTMLを生成（テンプレートリテラルで組み立て）
     return`<tr class="${r.checked?'checked-row':''}${bulkMode&&bulkSelected.has(r.id)?' bulk-selected':''}">
       ${bulkMode&&!r.is_archive?`<td data-col="sel" style="text-align:center"><input type="checkbox" ${bulkSelected.has(r.id)?'checked':''} onchange="toggleBulkRow('${r.id}',this.checked)" style="width:18px;height:18px;accent-color:#185FA5;cursor:pointer;"></td>`:'<td data-col="sel" style="display:none"></td>'}
-      <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',this.checked)"></td>
+      <td data-col="0" style="text-align:center"><input type="checkbox" ${r.checked?'checked':''} onchange="toggleCheck('${r.id}',!this.checked)"></td>
       <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
       <td data-col="2"><span class="badge badge-gray">${r.aisle}</span></td>
       <td data-col="3"><span class="jan-code">${r.jan}</span></td>
