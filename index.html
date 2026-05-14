@@ -1166,6 +1166,14 @@ async function lookupFromList(jan, aisle){
   const aisleSelect = document.getElementById('reg-aisle');
   if(aisle && aisleSelect) aisleSelect.value = aisle;
 
+  // 通路番号以外のフォームを明示的にクリア（前回の値が残らないように）
+  document.getElementById('reg-expiry').value = '';
+  document.getElementById('reg-days').value = '';
+  document.getElementById('reg-expiredQty').value = '';
+  document.getElementById('reg-selloff-method').value = '';
+  document.getElementById('reg-buttoshi').value = '';
+  setRegisterDiscountValue('');
+
   // フラグを立てる：lookupJAN内で通路引き継ぎ自動入力をスキップさせる
   lookupFromListMode = true;
 
