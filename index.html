@@ -577,18 +577,18 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
           <label>売り切り方法</label>
           <select id="reg-selloff-method">
             <option value="">選択してください</option>
-            <option value="売り切ってない">売り切ってない</option>
-            <option value="オフシール">オフシール</option>
-            <option value="ESL">ESL</option>
+            <option value="売り切ってない">＝¥＝ 売り切ってない</option>
+            <option value="オフシール">🏷️ オフシール</option>
+            <option value="ESL">📺 ESL</option>
           </select>
         </div>
         <div class="field">
           <label>ぶっとおし</label>
           <select id="reg-buttoshi">
             <option value="">選択してください</option>
-            <option value="作業時（登録日当日）は値引きがないので未登録">作業時（登録日当日）は値引きがないので未登録</option>
-            <option value="登録時ぶっとおしではない">登録時ぶっとおしではない</option>
-            <option value="登録時ぶっとおし">登録時ぶっとおし</option>
+            <option value="作業時（登録日当日）は値引きがないので未登録">【⏸️🈹】作業時（登録日当日）は値引きがないので未登録</option>
+            <option value="登録時ぶっとおしではない">【✅ぶ ×】登録時ぶっとおしではない</option>
+            <option value="登録時ぶっとおし">【✅ぶ ○】登録時ぶっとおし</option>
           </select>
         </div>
         <!-- 値下げ処理場所：プリセット選択 or フリーワード入力 -->
@@ -596,10 +596,10 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
           <label>値下げ処理商品の場所</label>
           <select id="reg-discount-type" onchange="handleRegisterDiscountTypeChange()">
             <option value="">選択してください</option>
-            <option value="作業時（登録日当日）は値引きがないので未登録">作業時（登録日当日）は値引きがないので未登録</option>
-            <option value="売り切りワゴン">売り切りワゴン</option>
-            <option value="定番棚のまま">定番棚のまま</option>
-            <option value="custom">フリーワード入力</option>
+            <option value="作業時（登録日当日）は値引きがないので未登録">【⏸️🈹】作業時（登録日当日）は値引きがないので未登録</option>
+            <option value="売り切りワゴン">🛒 売り切りワゴン</option>
+            <option value="定番棚のまま">📦 定番棚のまま</option>
+            <option value="custom">✏️ フリーワード入力</option>
           </select>
           <!-- フリーワード入力欄：「フリーワード入力」選択時だけ表示される -->
           <input type="text" id="reg-discount-custom" placeholder="場所を入力" style="display:none;margin-top:8px;" />
@@ -2190,9 +2190,9 @@ function renderList(){
       ?(r.selloff_method?`<span class="badge badge-gray">${r.selloff_method}</span>`:`<span class="muted">—</span>`)
       :`<select onchange="updateSelloffMethod('${r.id}',this.value)" style="font-size:12px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;min-width:100px;">
           <option value="" ${!r.selloff_method?'selected':''}>未選択</option>
-          <option value="売り切ってない" ${r.selloff_method==='売り切ってない'?'selected':''}>売り切ってない</option>
-          <option value="オフシール" ${r.selloff_method==='オフシール'?'selected':''}>オフシール</option>
-          <option value="ESL" ${r.selloff_method==='ESL'?'selected':''}>ESL</option>
+          <option value="売り切ってない" ${r.selloff_method==='売り切ってない'?'selected':''}>＝¥＝ 売り切ってない</option>
+          <option value="オフシール" ${r.selloff_method==='オフシール'?'selected':''}>🏷️ オフシール</option>
+          <option value="ESL" ${r.selloff_method==='ESL'?'selected':''}>📺 ESL</option>
         </select>`;
 
     // 1行分のHTMLを生成（テンプレートリテラルで組み立て）
@@ -2216,7 +2216,7 @@ function renderList(){
       <td data-col="18" style="text-align:center">${r.high_expiry_flag?'<span class="badge" style="background:#fff3cd;color:#856404;font-size:11px;">⚠️10個以上</span>':'<span class="muted">—</span>'}</td>
       <td data-col="14" style="font-family:monospace;font-size:11px">${r.esl_code||'—'}</td>
       <td data-col="15">${selloffCell}</td>
-      <td data-col="16">${r.buttoshi?`<span class="badge ${r.buttoshi==='登録時ぶっとおし'?'badge-purple':'badge-gray'}">${r.buttoshi}</span>`:`<span class="muted">—</span>`}</td>
+      <td data-col="16">${r.buttoshi?`<span class="badge ${r.buttoshi==='登録時ぶっとおし'?'badge-purple':'badge-gray'}">${r.buttoshi==='登録時ぶっとおし'?'【✅ぶ ○】登録時ぶっとおし':r.buttoshi==='登録時ぶっとおしではない'?'【✅ぶ ×】登録時ぶっとおしではない':'【⏸️🈹】'+r.buttoshi}</span>`:`<span class="muted">—</span>`}</td>
       <td data-col="del" style="text-align:center"><button onclick="deleteRecord('${r.id}',${r.is_archive||false})" style="background:none;border:none;font-size:16px;cursor:pointer;color:#e53;">🗑</button></td>
     </tr>`;
   }).join('');
