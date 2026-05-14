@@ -1305,9 +1305,10 @@ function initExpiryCalendar(){
   // 今年・来年・再来年の3択
   const years=[thisYear, thisYear+1, thisYear+2];
   const yearRow=document.getElementById('cal-year-row');
-  yearRow.innerHTML=years.map(y=>
-    `<button type="button" class="cal-btn" style="flex:1;" onclick="calSelectYear(${y})">${y}年</button>`
-  ).join('');
+  yearRow.innerHTML=years.map(y=>{
+    const reiwa=String(y-2018).padStart(2,'0');
+    return `<button type="button" class="cal-btn" style="flex:1;" onclick="calSelectYear(${y})">${y}<br><span style="font-size:11px;color:#888;">R${reiwa}</span></button>`;
+  }).join('');
   document.getElementById('cal-month-row').style.display='none';
   document.getElementById('cal-day-row').style.display='none';
   document.getElementById('cal-selected').style.display='none';
