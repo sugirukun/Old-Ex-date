@@ -298,6 +298,13 @@ body.bulk-mode-active #main-screen{padding-bottom:64px;}
 /* 一括モード中は「済」列を CSS で強制非表示（applyColVisibilityより優先） */
 body.bulk-mode-active [data-col="0"]{display:none !important;}
 
+/* ===== 賞味期限カレンダーUI ===== */
+.cal-btn{padding:8px 4px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;text-align:center;color:#1a1a1a;font-weight:500;}
+.cal-btn:hover{background:#f0f6ff;border-color:#185FA5;}
+.cal-btn.selected{background:#185FA5;color:#fff;border-color:#185FA5;}
+.cal-btn.today-mark{border-color:#185FA5;color:#185FA5;}
+.cal-btn:disabled{background:#f5f5f5;color:#ccc;cursor:default;border-color:#eee;}
+
 /* ===== スカウター入力 ===== */
 .scouter-wrap{
   position:relative;
@@ -535,8 +542,27 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
         </div>
         <div class="field">
           <label>最古賞味期限</label>
-          <input type="text" id="reg-expiry" placeholder="yyyymmdd" inputmode="numeric" maxlength="8" />
-          <div class="hint">8桁の数字で入力（例：20260410）</div>
+          <!-- カレンダーUI -->
+          <div id="expiry-calendar">
+            <!-- 年選択 -->
+            <div id="cal-year-row" style="display:flex;gap:8px;margin-bottom:8px;"></div>
+            <!-- 月選択 -->
+            <div id="cal-month-row" style="display:none;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px;"></div>
+            <!-- 日選択 -->
+            <div id="cal-day-row" style="display:none;display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px;"></div>
+            <!-- 選択済み表示 -->
+            <div id="cal-selected" style="display:none;font-size:14px;font-weight:600;color:#185FA5;margin-bottom:6px;"></div>
+            <!-- 手入力切り替え -->
+            <button type="button" onclick="toggleExpiryManual()" style="font-size:12px;color:#888;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;">✏️ 手入力に切り替え（3年以上先の場合）</button>
+          </div>
+          <!-- 手入力UI（初期非表示） -->
+          <div id="expiry-manual" style="display:none;margin-top:6px;">
+            <input type="text" id="reg-expiry" placeholder="yyyymmdd" inputmode="numeric" maxlength="8" style="width:100%;font-size:16px;padding:11px 13px;border:1px solid #ddd;border-radius:10px;outline:none;background:#fff;color:#1a1a1a;" />
+            <div class="hint" style="margin-top:4px;">8桁の数字で入力（例：20280410）</div>
+            <button type="button" onclick="toggleExpiryManual()" style="font-size:12px;color:#888;background:none;border:none;cursor:pointer;text-decoration:underline;padding:4px 0 0;">📅 カレンダーに戻す</button>
+          </div>
+          <!-- 隠しフィールド：カレンダー選択値をここに格納してregisterItemが読む -->
+          <input type="hidden" id="reg-expiry-hidden" />
         </div>
         <!-- 賞味期限入力後に自動計算される残日数（readonlyで編集不可） -->
         <div class="field">
@@ -1168,11 +1194,18 @@ async function lookupFromList(jan, aisle){
 
   // 通路番号以外のフォームを明示的にクリア（前回の値が残らないように）
   document.getElementById('reg-expiry').value = '';
+  document.getElementById('reg-expiry-hidden').value = '';
   document.getElementById('reg-days').value = '';
   document.getElementById('reg-expiredQty').value = '';
   document.getElementById('reg-selloff-method').value = '';
   document.getElementById('reg-buttoshi').value = '';
   setRegisterDiscountValue('');
+  // カレンダーを初期状態に戻す
+  const _cal2=document.getElementById('expiry-calendar');
+  const _man2=document.getElementById('expiry-manual');
+  if(_cal2)_cal2.style.display='block';
+  if(_man2)_man2.style.display='none';
+  initExpiryCalendar();
 
   // フラグを立てる：lookupJAN内で通路引き継ぎ自動入力をスキップさせる
   lookupFromListMode = true;
@@ -1232,14 +1265,172 @@ async function lookupJAN(){
     const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',data.jan).eq('aisle',aisle).single();
     if(rec){
       const exStr=rec.expiry.replace(/-/g,'');
-      document.getElementById('reg-expiry').value=exStr;
+      // カレンダーUIに反映
+      const y=parseInt(exStr.slice(0,4));
+      const m=parseInt(exStr.slice(4,6));
+      const d=parseInt(exStr.slice(6,8));
+      const now=new Date(); now.setHours(0,0,0,0);
+      const thisYear=now.getFullYear();
+      if(y>=thisYear && y<=thisYear+2){
+        // カレンダーUIで対応可能な範囲
+        calSelectYear(y);
+        calSelectMonth(m);
+        calSelectDay(d);
+      }else{
+        // 範囲外なら手入力モードに切り替えてセット
+        document.getElementById('expiry-calendar').style.display='none';
+        document.getElementById('expiry-manual').style.display='block';
+        document.getElementById('reg-expiry').value=exStr;
+        updateDays(exStr);
+      }
       document.getElementById('reg-expiredQty').value=rec.expired_qty??'';
       setRegisterDiscountValue(rec.discount_location||'');
-      updateDays(exStr);
     }
   }
   lookupFromListMode = false; // フラグをリセット
   toast('商品情報を読み込みました');
+}
+
+// ============================================================
+// 賞味期限カレンダーUI（v4.0新機能）
+// 今年〜再来年の3年分をタップで入力。3年以上先は手入力へ切替
+// ============================================================
+let calYear=null, calMonth=null, calDay=null;
+
+// カレンダーを初期化（年ボタンを表示）
+function initExpiryCalendar(){
+  calYear=null; calMonth=null; calDay=null;
+  const now=new Date();
+  const thisYear=now.getFullYear();
+  // 今年・来年・再来年の3択
+  const years=[thisYear, thisYear+1, thisYear+2];
+  const yearRow=document.getElementById('cal-year-row');
+  yearRow.innerHTML=years.map(y=>
+    `<button type="button" class="cal-btn" style="flex:1;" onclick="calSelectYear(${y})">${y}年</button>`
+  ).join('');
+  document.getElementById('cal-month-row').style.display='none';
+  document.getElementById('cal-day-row').style.display='none';
+  document.getElementById('cal-selected').style.display='none';
+  updateExpiryHidden();
+}
+
+// 年を選択
+function calSelectYear(y){
+  calYear=y; calMonth=null; calDay=null;
+  // 年ボタンのselectedを更新
+  document.querySelectorAll('#cal-year-row .cal-btn').forEach(b=>{
+    b.classList.toggle('selected', parseInt(b.textContent)===y);
+  });
+  buildMonthButtons();
+  updateExpiryHidden();
+}
+
+// 月ボタンを構築
+function buildMonthButtons(){
+  const monthRow=document.getElementById('cal-month-row');
+  monthRow.style.display='grid';
+  const now=new Date();
+  monthRow.innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>{
+    // 今年の過去月は選択不可
+    const disabled=(calYear===now.getFullYear()&&m<now.getMonth()+1);
+    return `<button type="button" class="cal-btn${disabled?' ':''}" ${disabled?'disabled':''} onclick="calSelectMonth(${m})">${m}月</button>`;
+  }).join('');
+  document.getElementById('cal-day-row').style.display='none';
+}
+
+// 月を選択
+function calSelectMonth(m){
+  calMonth=m; calDay=null;
+  document.querySelectorAll('#cal-month-row .cal-btn').forEach(b=>{
+    b.classList.toggle('selected', parseInt(b.textContent)===m);
+  });
+  buildDayButtons();
+  updateExpiryHidden();
+}
+
+// 日ボタンを構築
+function buildDayButtons(){
+  const dayRow=document.getElementById('cal-day-row');
+  dayRow.style.display='grid';
+  const daysInMonth=new Date(calYear, calMonth, 0).getDate();
+  const now=new Date(); now.setHours(0,0,0,0);
+  // 曜日ヘッダー
+  const headers=['日','月','火','水','木','金','土'].map(d=>
+    `<div style="text-align:center;font-size:10px;color:#aaa;padding:2px 0;">${d}</div>`
+  ).join('');
+  // 1日の曜日オフセット
+  const firstDay=new Date(calYear, calMonth-1, 1).getDay();
+  const blanks=Array(firstDay).fill('<div></div>').join('');
+  const days=Array.from({length:daysInMonth},(_,i)=>{
+    const d=i+1;
+    const dt=new Date(calYear, calMonth-1, d);
+    const disabled=dt<now;
+    const isToday=dt.getTime()===now.getTime();
+    return `<button type="button" class="cal-btn${isToday?' today-mark':''}" ${disabled?'disabled':''} onclick="calSelectDay(${d})">${d}</button>`;
+  }).join('');
+  dayRow.innerHTML=headers+blanks+days;
+}
+
+// 日を選択
+function calSelectDay(d){
+  calDay=d;
+  document.querySelectorAll('#cal-day-row .cal-btn').forEach(b=>{
+    b.classList.toggle('selected', parseInt(b.textContent)===d&&!b.disabled);
+  });
+  updateExpiryHidden();
+  // 選択完了表示
+  const sel=document.getElementById('cal-selected');
+  const mm=String(calMonth).padStart(2,'0');
+  const dd=String(calDay).padStart(2,'0');
+  sel.textContent=`✅ ${calYear}年${calMonth}月${calDay}日`;
+  sel.style.display='block';
+}
+
+// 隠しフィールドとreg-expiryの値を更新 → updateDaysも呼ぶ
+function updateExpiryHidden(){
+  if(calYear&&calMonth&&calDay){
+    const mm=String(calMonth).padStart(2,'0');
+    const dd=String(calDay).padStart(2,'0');
+    const val=`${calYear}${mm}${dd}`;
+    document.getElementById('reg-expiry-hidden').value=val;
+    updateDays(val);
+  }else{
+    document.getElementById('reg-expiry-hidden').value='';
+    document.getElementById('reg-days').value='';
+  }
+}
+
+// カレンダー ↔ 手入力 の切り替え
+function toggleExpiryManual(){
+  const cal=document.getElementById('expiry-calendar');
+  const man=document.getElementById('expiry-manual');
+  const isManual=man.style.display!=='none';
+  if(isManual){
+    // 手入力 → カレンダーに戻す
+    man.style.display='none';
+    cal.style.display='block';
+    document.getElementById('reg-expiry').value='';
+    initExpiryCalendar();
+  }else{
+    // カレンダー → 手入力
+    cal.style.display='none';
+    man.style.display='block';
+    document.getElementById('reg-expiry-hidden').value='';
+    document.getElementById('reg-days').value='';
+    calYear=null; calMonth=null; calDay=null;
+  }
+}
+
+// 賞味期限の値を取得（カレンダー or 手入力を統合）
+function getExpiryValue(){
+  const man=document.getElementById('expiry-manual');
+  if(man.style.display!=='none'){
+    // 手入力モード
+    return document.getElementById('reg-expiry').value.replace(/\D/g,'');
+  }else{
+    // カレンダーモード
+    return document.getElementById('reg-expiry-hidden').value;
+  }
 }
 
 // 賞味期限入力欄の値から残日数を自動計算してフォームに表示する
@@ -1259,7 +1450,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   setRegisterDiscountValue('');
   document.getElementById('reg-selloff-method').value='';
   document.getElementById('reg-buttoshi').value='';
-  // 賞味期限入力欄への入力イベントで残日数を自動更新
+  initExpiryCalendar();// カレンダーUI初期化
+  // 手入力モードのinputイベントで残日数を自動更新
   const ei=document.getElementById('reg-expiry');
   if(ei)ei.addEventListener('input',()=>updateDays());
   // JANコード入力欄でEnterキーを押したら検索実行
@@ -1277,7 +1469,7 @@ async function registerItem(){
 
   // フォームの値を取得
   const aisle=document.getElementById('reg-aisle').value;
-  const expiryRaw=document.getElementById('reg-expiry').value.replace(/\D/g,'');
+  const expiryRaw=getExpiryValue();
   const qtyRaw=document.getElementById('reg-expiredQty').value.trim();
   const qty=parseInt(qtyRaw,10);
   const discount=getRegisterDiscountValue();
@@ -1435,11 +1627,18 @@ function clearForm(){
   document.getElementById('master-result').style.display='none';
   document.getElementById('reg-aisle').value='';
   document.getElementById('reg-expiry').value='';
+  document.getElementById('reg-expiry-hidden').value='';
   document.getElementById('reg-expiredQty').value='';
   document.getElementById('reg-days').value='';
   setRegisterDiscountValue('');
   document.getElementById('reg-selloff-method').value='';
   document.getElementById('reg-buttoshi').value='';
+  // カレンダーを初期状態に戻す
+  const _cal=document.getElementById('expiry-calendar');
+  const _man=document.getElementById('expiry-manual');
+  if(_cal)_cal.style.display='block';
+  if(_man)_man.style.display='none';
+  initExpiryCalendar();
   renderList();// クリア時に一覧を通常表示に戻す
 }
 
