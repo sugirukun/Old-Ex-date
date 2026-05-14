@@ -1,6 +1,11 @@
 <!-- ============================================================
-  賞味期限管理アプリ v3.4
+  賞味期限管理アプリ v4.0
+  作成経緯：バイブコーディング × Claude によって段階的に構築
   
+  【v4.0 変更点】
+  - 一覧行の自社コードをタップ → スキャン不要でマスター呼び出し
+  - 自社コードを青字＋下線のリンク風表示（タップ可能と視覚的に明示）
+  - 通路番号は前回登録値を自動引き継ぎ
   
   【ファイル構成の概要】
   このファイル1つで画面・デザイン・動作のすべてが完結しています。
@@ -145,6 +150,9 @@ input[type=checkbox]{width:18px;height:18px;cursor:pointer;accent-color:#185FA5;
 .muted{color:#bbb;font-size:12px;}/* データなし時の「—」表示 */
 .own-label{font-size:10px;color:#aaa;display:block;}
 .own-code{font-size:11px;color:#666;font-family:monospace;}
+/* 一覧行の自社コードタップで登録フォーム呼び出し */
+.own-code-link{font-size:11px;font-family:monospace;color:#185FA5;text-decoration:underline;cursor:pointer;display:inline-block;}
+.own-code-link:hover{color:#0c447c;}
 .jan-code{font-family:monospace;font-size:11px;color:#555;letter-spacing:0.5px;width:110px;display:inline-block;}
 .empty-row{padding:40px;text-align:center;color:#aaa;font-size:14px;}
 
@@ -1145,6 +1153,29 @@ async function captureOCR(){
 }
 
 // ============================================================
+// 一覧行の自社コードタップ → 登録フォーム呼び出し（v4.0新機能）
+// スキャン・手打ち不要でリストから直接登録フォームを展開する
+// 通路番号は前回登録値（タップした行の通路）を引き継ぐ
+// ============================================================
+async function lookupFromList(jan, aisle){
+  // JANコード入力欄にセットしてlookupJANを呼ぶ
+  document.getElementById('jan-input').value = jan;
+
+  // まず通路番号を引き継ぎセット（lookupJAN内で通路ありの場合に既存データを引く）
+  const aisleSelect = document.getElementById('reg-aisle');
+  if(aisle && aisleSelect){
+    aisleSelect.value = aisle;
+  }
+
+  // 画面を商品登録パネルまでスクロール
+  const panelRegister = document.getElementById('panel-register');
+  if(panelRegister) panelRegister.scrollIntoView({behavior:'smooth', block:'start'});
+
+  await lookupJAN();
+  // ※トーストはlookupJAN内で表示されるため、ここでは追加しない
+}
+
+// ============================================================
 // JAN/自社コード検索（Supabase の products テーブルを参照）
 // ============================================================
 async function lookupJAN(){
@@ -1945,7 +1976,7 @@ function renderList(){
       <td data-col="1"><span class="badge" style="background:#e8f0fe;color:#185FA5;">${r.department||'—'}</span></td>
       <td data-col="2"><span class="badge badge-gray">${r.aisle}</span></td>
       <td data-col="3"><span class="jan-code">${r.jan}</span></td>
-      <td data-col="4"><span class="own-label">自社</span><span class="own-code">${r.own_code}</span></td>
+      <td data-col="4"><span class="own-label">自社</span><span class="own-code-link" onclick="lookupFromList('${r.jan}','${r.aisle}')" title="タップして登録フォームを呼び出す">${r.own_code}</span></td>
       <td data-col="5" style="font-weight:600">${r.name}${isStale(r)?'<span class="badge badge-stale" style="margin-left:6px;font-size:10px;">🔴7日以上滞留</span>':''}</td>
       <td data-col="6"><span class="badge badge-gray">${r.category}</span></td>
       <td data-col="7">${r.expiry}</td>
