@@ -1,6 +1,5 @@
 <!-- ============================================================
   賞味期限管理アプリ v4.0
-  作成経緯：バイブコーディング × Claude によって段階的に構築
   
   【v4.0 変更点】
   - 一覧行の自社コードをタップ → スキャン不要でマスター呼び出し
@@ -1157,22 +1156,24 @@ async function captureOCR(){
 // スキャン・手打ち不要でリストから直接登録フォームを展開する
 // 通路番号は前回登録値（タップした行の通路）を引き継ぐ
 // ============================================================
+let lookupFromListMode = false; // 一覧タップ経由フラグ
+
 async function lookupFromList(jan, aisle){
-  // JANコード入力欄にセットしてlookupJANを呼ぶ
+  // JANコード入力欄にセット
   document.getElementById('jan-input').value = jan;
 
-  // まず通路番号を引き継ぎセット（lookupJAN内で通路ありの場合に既存データを引く）
+  // 通路番号のみ引き継ぎセット
   const aisleSelect = document.getElementById('reg-aisle');
-  if(aisle && aisleSelect){
-    aisleSelect.value = aisle;
-  }
+  if(aisle && aisleSelect) aisleSelect.value = aisle;
+
+  // フラグを立てる：lookupJAN内で通路引き継ぎ自動入力をスキップさせる
+  lookupFromListMode = true;
 
   // 画面を商品登録パネルまでスクロール
   const panelRegister = document.getElementById('panel-register');
   if(panelRegister) panelRegister.scrollIntoView({behavior:'smooth', block:'start'});
 
   await lookupJAN();
-  // ※トーストはlookupJAN内で表示されるため、ここでは追加しない
 }
 
 // ============================================================
@@ -1217,8 +1218,9 @@ async function lookupJAN(){
   renderList();// マスター呼び出し時に一覧を同JANコードで絞り込む
 
   // 通路が選択済みなら既存の登録データを引いてフォームに自動入力
+  // ただし一覧タップ経由（lookupFromListMode）のときは通路のみ引き継ぎ、他は空のまま
   const aisle=document.getElementById('reg-aisle').value;
-  if(aisle){
+  if(aisle && !lookupFromListMode){
     const {data:rec}=await sb.from('expiry_records').select('*').eq('jan',data.jan).eq('aisle',aisle).single();
     if(rec){
       const exStr=rec.expiry.replace(/-/g,'');
@@ -1228,6 +1230,7 @@ async function lookupJAN(){
       updateDays(exStr);
     }
   }
+  lookupFromListMode = false; // フラグをリセット
   toast('商品情報を読み込みました');
 }
 
