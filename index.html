@@ -1307,7 +1307,7 @@ function initExpiryCalendar(){
   const yearRow=document.getElementById('cal-year-row');
   yearRow.innerHTML=years.map(y=>{
     const reiwa=String(y-2018).padStart(2,'0');
-    return `<button type="button" class="cal-btn" style="flex:1;" onclick="calSelectYear(${y})">${y}<br><span style="font-size:11px;color:#888;">R${reiwa}</span></button>`;
+    return `<button type="button" class="cal-btn" style="flex:1;font-size:16px;" onclick="calSelectYear(${y})">${y} <span style="font-size:14px;color:#888;">R${reiwa}</span></button>`;
   }).join('');
   document.getElementById('cal-month-row').style.display='none';
   document.getElementById('cal-day-row').style.display='none';
