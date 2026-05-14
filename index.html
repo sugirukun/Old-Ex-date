@@ -1,5 +1,5 @@
 <!-- ============================================================
-  賞味期限管理アプリ v4.1
+  賞味期限管理アプリ v4.31
   
   【v4.0 変更点】
   - 一覧行の自社コードをタップ → スキャン不要でマスター呼び出し
@@ -2742,6 +2742,10 @@ function execLogout(hadWarn){
   if(_fd)_fd.value='all';
   const _banner=document.getElementById('master-filter-banner');
   if(_banner)_banner.style.display='none';
+  const _mr=document.getElementById('master-result');
+  if(_mr)_mr.style.display='none';
+  const _ji=document.getElementById('jan-input');
+  if(_ji)_ji.value='';
   // 画面切り替え
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
