@@ -2727,6 +2727,21 @@ function execLogout(hadWarn){
   document.getElementById('alert-days-num').value=365;
   const _fdl=document.getElementById('filter-discount-location');
   if(_fdl)_fdl.value='all';
+  // 検索窓・全フィルターをリセット
+  const _fs=document.getElementById('filter-search');
+  if(_fs)_fs.value='';
+  const _fst=document.getElementById('filter-status');
+  if(_fst)_fst.value='all';
+  const _fa=document.getElementById('filter-archive');
+  if(_fa)_fa.value='current';
+  const _fai=document.getElementById('filter-aisle');
+  if(_fai)_fai.value='all';
+  const _fc=document.getElementById('filter-cat');
+  if(_fc)_fc.value='all';
+  const _fd=document.getElementById('filter-dept');
+  if(_fd)_fd.value='all';
+  const _banner=document.getElementById('master-filter-banner');
+  if(_banner)_banner.style.display='none';
   // 画面切り替え
   document.getElementById('main-screen').style.display='none';
   document.getElementById('login-screen').style.display='flex';
