@@ -1588,6 +1588,16 @@ async function dialogAction(btn){
             await sb.from('expiry_records').update({expired_qty:0,qty_updated_at:todayStr()}).eq('id',rec.id);
             rec.expired_qty=0;
           }
+        }else{
+          // いいえの場合：既存レコードはそのまま残して新規登録のみ行う
+          document.getElementById('dialog-cancel').style.display='';
+          showLoading(true);
+          const{error}=await sb.from('expiry_records').insert({jan,aisle,expiry:expiryFmt,expired_qty:qty,discount_location:discount,selloff_method:selloffMethod,buttoshi,esl_code:eslCode||null,staff:currentStaff,registered_at:todayStr(),qty_updated_at:todayStr(),checked:false,high_expiry_flag:qty>=10});
+          showLoading(false);
+          if(error){toast('登録に失敗しました：'+error.message);return;}
+          toast('別枠で登録しました：'+currentMaster.name+' / '+aisle);
+          clearForm();loadList();
+          return;
         }
         document.getElementById('dialog-cancel').style.display='';
       }
