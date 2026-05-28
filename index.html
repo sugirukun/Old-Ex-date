@@ -126,6 +126,10 @@ input,select,button,textarea{font-family:inherit;}
 table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;}
 /* ヘッダー行：スクロール時も上部に固定（position:sticky） */
 thead th{padding:8px 9px;text-align:left;font-weight:600;font-size:11px;color:#888;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;white-space:normal;line-height:1.4;min-width:55px;cursor:pointer;user-select:none;}
+/* ===== デフォルト（文字大）モード ===== */
+#panel-list.font-large table{font-size:16px !important;}
+#panel-list.font-large thead th{font-size:16px !important;}
+#panel-list.font-large td,#panel-list.font-large td *{font-size:16px !important;}
 thead th:hover{color:#185FA5;}/* ホバーで青くなりソート可能と示す */
 tbody tr{border-bottom:1px solid #f0f0f0;}
 tbody tr:active{background:#f8f8f8;}
@@ -1916,8 +1920,8 @@ function setColMode(mode){
     });
   }
   // テーブルの文字サイズ切り替え
-  const tbl=document.querySelector('#panel-list table');
-  if(tbl) tbl.style.fontSize=mode==='large'?'16px':'';
+  const pl=document.getElementById('panel-list');
+  if(pl) pl.classList.toggle('font-large', mode==='large');
   // モード切り替えボタンのスタイルを更新
   ['default','large','custom'].forEach(m=>{
     const btn=document.getElementById('mode-'+m);
