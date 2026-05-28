@@ -699,6 +699,7 @@ body.bulk-mode-active [data-col="0"]{display:none !important;}
     <div style="padding:6px 14px;background:#f8f8f8;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px;">
       <span style="font-size:12px;color:#888;">列の表示：</span>
       <button id="mode-default" onclick="setColMode('default')" style="font-size:12px;color:#185FA5;font-weight:700;background:none;border:none;cursor:pointer;padding:2px 0;">デフォルト</button>
+      <button id="mode-large" onclick="setColMode('large')" style="font-size:12px;color:#888;font-weight:400;background:none;border:none;cursor:pointer;padding:2px 0;">デフォルト（文字大）</button>
       <button id="mode-custom" onclick="setColMode('custom')" style="font-size:12px;color:#888;font-weight:400;background:none;border:none;cursor:pointer;padding:2px 0;">カスタム</button>
     </div>
 
@@ -1908,17 +1909,22 @@ let colMode='default';// 'default' or 'custom'
 // デフォルト/カスタムモードの切り替え
 function setColMode(mode){
   colMode=mode;
-  if(mode==='default'){
-    hiddenCols=new Set(DEFAULT_HIDDEN);// デフォルトに戻す
+  if(mode==='default'||mode==='large'){
+    hiddenCols=new Set(DEFAULT_HIDDEN);// デフォルトと同じ列構成
     document.querySelectorAll('.col-toggle-bar input[type=checkbox]').forEach(cb=>{
       const col=parseInt(cb.getAttribute('data-col'));cb.checked=!DEFAULT_HIDDEN.has(col);
     });
   }
+  // テーブルの文字サイズ切り替え
+  const tbl=document.querySelector('#panel-list table');
+  if(tbl) tbl.style.fontSize=mode==='large'?'16px':'';
   // モード切り替えボタンのスタイルを更新
-  document.getElementById('mode-default').style.fontWeight=mode==='default'?'700':'400';
-  document.getElementById('mode-custom').style.fontWeight=mode==='custom'?'700':'400';
-  document.getElementById('mode-default').style.color=mode==='default'?'#185FA5':'#888';
-  document.getElementById('mode-custom').style.color=mode==='custom'?'#185FA5':'#888';
+  ['default','large','custom'].forEach(m=>{
+    const btn=document.getElementById('mode-'+m);
+    if(!btn)return;
+    btn.style.fontWeight=mode===m?'700':'400';
+    btn.style.color=mode===m?'#185FA5':'#888';
+  });
   document.getElementById('col-toggle-bar').style.display=mode==='custom'?'flex':'none';
   applyColVisibility();
 }
